@@ -1157,9 +1157,10 @@ export default function MembershipCardPage() {
   )
 }
 
-// Interactive Crop Profile Photo Modal (137x136 Aspect Ratio, Zero Gap)
+// Interactive Crop Profile Photo Modal (137x136 Aspect Ratio, Touch & Mouse Drag Enabled)
 function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
   const canvasRef = useRef(null)
+  const cropBoxRef = useRef(null)
   const [zoom, setZoom] = useState(1)
   const stateRef = useRef({
     img: null,
@@ -1170,10 +1171,26 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
     isDragging: false,
     dragStartX: 0,
     dragStartY: 0,
+    isPinching: false,
+    pinchStartDist: 0,
+    pinchStartZoom: 1,
   })
 
   const CROP_BOX_W = 190
   const CROP_BOX_H = 188.6 // exact 137x136 proportion
+
+  // Lock background page scroll while photo cropper modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const prevOverflow = document.body.style.overflow
+    const prevTouchAction = document.body.style.touchAction
+    document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.touchAction = prevTouchAction
+    }
+  }, [isOpen])
 
   const clampPosition = (img, imgX, imgY, baseScale, currentZoom) => {
     const currentScale = baseScale * currentZoom
@@ -1239,6 +1256,9 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
         isDragging: false,
         dragStartX: 0,
         dragStartY: 0,
+        isPinching: false,
+        pinchStartDist: 0,
+        pinchStartZoom: 1,
       }
       setZoom(1)
       drawCanvas()
@@ -1265,6 +1285,77 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
     drawCanvas()
   }
 
+  // Touch Event Listeners with non-passive preventDefault so the mobile page NEVER scrolls
+  useEffect(() => {
+    if (!isOpen) return
+    const el = cropBoxRef.current
+    if (!el) return
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 1) {
+        stateRef.current.isDragging = true
+        stateRef.current.dragStartX = e.touches[0].clientX - stateRef.current.imgX
+        stateRef.current.dragStartY = e.touches[0].clientY - stateRef.current.imgY
+      } else if (e.touches.length === 2) {
+        stateRef.current.isPinching = true
+        stateRef.current.pinchStartDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        )
+        stateRef.current.pinchStartZoom = stateRef.current.zoom
+      }
+    }
+
+    const onTouchMove = (e) => {
+      if (e.cancelable) {
+        e.preventDefault()
+      }
+      if (e.touches.length === 1 && stateRef.current.isDragging && stateRef.current.img) {
+        const newX = e.touches[0].clientX - stateRef.current.dragStartX
+        const newY = e.touches[0].clientY - stateRef.current.dragStartY
+        const clamped = clampPosition(stateRef.current.img, newX, newY, stateRef.current.baseScale, stateRef.current.zoom)
+        stateRef.current.imgX = clamped.x
+        stateRef.current.imgY = clamped.y
+        drawCanvas()
+      } else if (e.touches.length === 2 && stateRef.current.isPinching) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        )
+        const ratio = dist / (stateRef.current.pinchStartDist || 1)
+        const nextZoom = Math.min(3, Math.max(1, stateRef.current.pinchStartZoom * ratio))
+        handleZoom(nextZoom)
+      }
+    }
+
+    const onTouchEnd = () => {
+      stateRef.current.isDragging = false
+      stateRef.current.isPinching = false
+    }
+
+    const onWheel = (e) => {
+      if (e.cancelable) e.preventDefault()
+      const delta = e.deltaY < 0 ? 0.08 : -0.08
+      const nextZoom = Math.min(3, Math.max(1, stateRef.current.zoom + delta))
+      handleZoom(nextZoom)
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd)
+    el.addEventListener('touchcancel', onTouchEnd)
+    el.addEventListener('wheel', onWheel, { passive: false })
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [isOpen])
+
+  // Mouse handlers for desktop
   const handleMouseDown = (e) => {
     stateRef.current.isDragging = true
     stateRef.current.dragStartX = e.clientX - stateRef.current.imgX
@@ -1272,7 +1363,7 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
   }
 
   const handleMouseMove = (e) => {
-    if (!stateRef.current.isDragging) return
+    if (!stateRef.current.isDragging || !stateRef.current.img) return
     const newX = e.clientX - stateRef.current.dragStartX
     const newY = e.clientY - stateRef.current.dragStartY
     const clamped = clampPosition(stateRef.current.img, newX, newY, stateRef.current.baseScale, stateRef.current.zoom)
@@ -1320,21 +1411,30 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#111827] border border-white/15 rounded-2xl p-5 max-w-[440px] w-full flex flex-col gap-4 shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      style={{ touchAction: 'none' }}
+    >
+      <div
+        className="bg-[#111827] border border-white/15 rounded-2xl p-4 sm:p-5 max-w-[440px] w-full flex flex-col gap-3.5 shadow-2xl max-h-[96vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-white font-bold text-base font-['Montserrat']">Crop Profile Photo</h3>
-          <button onClick={onClose} className="text-white/60 hover:text-white text-xl leading-none">&times;</button>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none p-1 cursor-pointer">&times;</button>
         </div>
 
+        {/* Cropper Container with Touch Action None */}
         <div
-          className="relative w-full h-[310px] bg-black rounded-xl overflow-hidden cursor-grab active:cursor-grabbing select-none flex items-center justify-center"
+          ref={cropBoxRef}
+          className="relative w-full h-[310px] bg-black rounded-xl overflow-hidden cursor-grab active:cursor-grabbing select-none flex items-center justify-center touch-none"
+          style={{ touchAction: 'none' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
-          <canvas ref={canvasRef} width={360} height={310} className="block" />
+          <canvas ref={canvasRef} width={360} height={310} className="block pointer-events-none" />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
               className="relative rounded-lg border-2 border-white/90 shadow-[0_0_0_1000px_rgba(0,0,0,0.6)]"
@@ -1347,8 +1447,22 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-1">
-          <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">ZOOM</span>
+        {/* Helpful Touch Gesture Hint */}
+        <p className="text-[11px] text-center text-slate-400 font-medium -mt-1 select-none">
+          👆 Drag photo to adjust position • Pinch or slider to zoom
+        </p>
+
+        {/* Zoom Controls with + / - Quick Buttons */}
+        <div className="flex items-center gap-2 px-1">
+          <button
+            type="button"
+            onClick={() => handleZoom(Math.max(1, zoom - 0.2))}
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white font-bold text-sm flex items-center justify-center transition-all cursor-pointer shrink-0"
+            title="Zoom out"
+          >
+            −
+          </button>
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">ZOOM</span>
           <input
             type="range"
             min="1"
@@ -1356,10 +1470,19 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
             step="0.01"
             value={zoom}
             onChange={(e) => handleZoom(e.target.value)}
-            className="flex-1 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            className="flex-1 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
+          <button
+            type="button"
+            onClick={() => handleZoom(Math.min(3, zoom + 0.2))}
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 text-white font-bold text-sm flex items-center justify-center transition-all cursor-pointer shrink-0"
+            title="Zoom in"
+          >
+            +
+          </button>
         </div>
 
+        {/* Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-1">
           <button
             type="button"
@@ -1371,7 +1494,7 @@ function PhotoCropModal({ imageSrc, isOpen, onClose, onSave }) {
           <button
             type="button"
             onClick={handleCropAndSave}
-            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 cursor-pointer active:scale-95"
           >
             CROP &amp; SAVE
           </button>
