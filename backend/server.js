@@ -21,6 +21,33 @@ app.use(cors({ origin: '*' }))
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
+// Root Endpoint (Fixes "Cannot GET /" when opening Render URL)
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'ISYDCI Official Membership & Cloudinary API is running live 🚀',
+    version: '1.0.0',
+    status: 'online',
+    endpoints: {
+      health: '/api/health',
+      members: '/api/members',
+      memberById: '/api/members/:id',
+      stats: '/api/stats',
+      adminAuth: '/api/auth/login',
+    },
+    timestamp: new Date().toISOString(),
+  })
+})
+
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    service: 'ISYDCI API Gateway',
+    status: 'online',
+    timestamp: new Date().toISOString(),
+  })
+})
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({
