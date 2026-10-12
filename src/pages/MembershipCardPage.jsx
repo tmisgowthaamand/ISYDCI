@@ -494,9 +494,10 @@ export default function MembershipCardPage() {
                       type="button"
                       disabled={downloading}
                       onClick={downloadFront}
-                      className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                      className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                      title="Download Front Side PNG"
                     >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="7 10 12 15 17 10" />
                         <line x1="12" y1="15" x2="12" y2="3" />
@@ -508,9 +509,10 @@ export default function MembershipCardPage() {
                       type="button"
                       disabled={downloading}
                       onClick={downloadBack}
-                      className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                      className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                      title="Download Back Side PNG"
                     >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="7 10 12 15 17 10" />
                         <line x1="12" y1="15" x2="12" y2="3" />
@@ -522,19 +524,29 @@ export default function MembershipCardPage() {
                       type="button"
                       disabled={downloading}
                       onClick={downloadBoth}
-                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-blue-600/20 cursor-pointer disabled:opacity-50"
+                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-blue-600/20 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                      title={`Download Full Combined Card (${member.memberId || 'ISYDCI'}_card.png)`}
                     >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                        <circle cx="12" cy="12" r="3" />
+                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
                       </svg>
-                      <span>Full Card ({member.memberId || 'ISYDCI'}_card.png)</span>
+                      <span>Full Card PNG</span>
                     </button>
+                  </div>
+
+                  {/* Download Filename Badge */}
+                  <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                    <span>Full Card saves as:</span>
+                    <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {member.memberId || 'ISYDCI'}_card.png
+                    </span>
                   </div>
                 </div>
 
                 {/* Quality Badge */}
-                <div className="mt-4 text-[11px] text-slate-500 text-center flex items-center justify-center gap-2">
+                <div className="mt-3.5 text-[11px] text-slate-500 text-center flex items-center justify-center gap-2">
                   <span>🔒 High Resolution 300 DPI Export</span>
                   <span>•</span>
                   <span>Scannable QR Verified</span>
@@ -846,9 +858,10 @@ export default function MembershipCardPage() {
                           <button
                             type="button"
                             onClick={downloadBoth}
-                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer"
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
+                            title={`Download ${savedDetails.memberId}_card.png`}
                           >
-                            <span>⬇️ Download {savedDetails.memberId}_card.png</span>
+                            <span>⬇️ Download Full Card PNG</span>
                           </button>
                         </div>
                       </div>
@@ -999,9 +1012,10 @@ export default function MembershipCardPage() {
                 <button
                   type="button"
                   onClick={downloadBoth}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer truncate"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
+                  title={toastNotification.downloadFilename || `${toastNotification.memberId}_card.png`}
                 >
-                  <span>⬇️ {toastNotification.downloadFilename || `${toastNotification.memberId}_card.png`}</span>
+                  <span>⬇️ Download Card PNG</span>
                 </button>
               </div>
             </div>
@@ -1021,7 +1035,7 @@ export default function MembershipCardPage() {
                           Official Digital ID Cards
                         </h3>
                         <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          Cloudinary Synced
+                          Verified ID Card
                         </span>
                       </div>
                       <p className="text-xs text-slate-500">
@@ -1061,25 +1075,14 @@ export default function MembershipCardPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="w-full">
                       <button
                         type="button"
                         onClick={() => triggerFileDownload(savedDetails?.cardFrontUrl, `${(savedDetails?.name || member.name || 'ISYDCI').trim().replace(/\s+/g, '_')}_ID_FRONT.png`)}
-                        className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
                       >
                         <span>⬇️ Download Front PNG</span>
                       </button>
-                      {savedDetails?.cardFrontUrl && savedDetails.cardFrontUrl.startsWith('http') && (
-                        <a
-                          href={savedDetails.cardFrontUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-all border border-blue-200"
-                          title="Open Cloudinary URL"
-                        >
-                          ↗ Cloudinary
-                        </a>
-                      )}
                     </div>
                   </div>
 
@@ -1104,25 +1107,14 @@ export default function MembershipCardPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="w-full">
                       <button
                         type="button"
                         onClick={() => triggerFileDownload(savedDetails?.cardBackUrl, `${(savedDetails?.name || member.name || 'ISYDCI').trim().replace(/\s+/g, '_')}_ID_BACK.png`)}
-                        className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
                       >
                         <span>⬇️ Download Back PNG</span>
                       </button>
-                      {savedDetails?.cardBackUrl && savedDetails.cardBackUrl.startsWith('http') && (
-                        <a
-                          href={savedDetails.cardBackUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-all border border-blue-200"
-                          title="Open Cloudinary URL"
-                        >
-                          ↗ Cloudinary
-                        </a>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1131,18 +1123,20 @@ export default function MembershipCardPage() {
                 <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 text-slate-500">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Cloudinary Folder:</span>
+                    <span>Official ID Record:</span>
                     <code className="text-[#0b1e3f] font-bold font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      {savedDetails?.cloudinaryFolder || `isydci/members/${(member.name || 'MEMBER').trim().replace(/\s+/g, '_')}`}
+                      {savedDetails?.memberId || member.memberId || 'ISYDCI'}
                     </code>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <button
                       type="button"
                       onClick={downloadBoth}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                      title={`Download ${savedDetails?.memberId || member.memberId || 'ISYDCI'}_card.png`}
                     >
-                      <span>⬇️ Download Full Card ({savedDetails?.memberId || member.memberId || 'ISYDCI'}_card.png)</span>
+                      <span>⬇️ Download Full Card</span>
+                      <span className="font-mono text-[11px] opacity-90 hidden sm:inline">({savedDetails?.memberId || member.memberId || 'ISYDCI'}_card.png)</span>
                     </button>
                     <button
                       type="button"
