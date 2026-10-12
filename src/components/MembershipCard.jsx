@@ -226,15 +226,6 @@ export const CardBack = forwardRef(function CardBack({ member, className = '' },
         fontFamily: "'Poppins', sans-serif"
       }}
     >
-      {/* Background Watermark of Logo - Clearly Visible Text */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.12] z-0">
-        <img
-          src="/logo.png"
-          alt="Watermark"
-          className="w-[290px] h-[290px] object-contain"
-          style={{ imageRendering: '-webkit-optimize-contrast' }}
-        />
-      </div>
 
       {/* ================= TOP SWOOSH HEADER (WHITE THEME) ================= */}
       <div className="relative w-full h-[115px] bg-white border-b border-slate-100 overflow-hidden shrink-0">
