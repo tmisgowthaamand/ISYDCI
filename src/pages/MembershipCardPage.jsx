@@ -240,9 +240,14 @@ export default function MembershipCardPage() {
       setDownloading(true)
       const node = dualCardRef.current
       if (!node) throw new Error('Combined card container not found')
-      const dataUrl = await toPng(node, { pixelRatio: 2.5, cacheBust: true })
-      const filename = member.name ? member.name.trim().replace(/\s+/g, '_') : 'ISYDCI_MEMBER'
-      await triggerFileDownload(dataUrl, `${filename}_ID_FULL.png`)
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2.5,
+        cacheBust: true,
+        backgroundColor: null, // Plain transparent background (no black box)
+      })
+      const cardId = member.memberId || makeAutoMemberId()
+      const filename = `${cardId}_card.png`
+      await triggerFileDownload(dataUrl, filename)
     } catch (err) {
       console.error('Download Both Error:', err)
       alert('Failed to download combined card. Please try again.')
@@ -251,7 +256,8 @@ export default function MembershipCardPage() {
     }
   }
 
-  // Save to Admin Database & Upload Front/Back/Photo to Cloudinary, Auto-Download PNGs, and Notify
+
+  // Save to Admin Database & Upload to Cloudinary, Auto-Download Full Card PNG, and Notify
   const handleSaveRegistration = async (e) => {
     e.preventDefault()
     try {
@@ -262,10 +268,18 @@ export default function MembershipCardPage() {
       const memberToSave = { ...member, memberId: finalMemberId }
       setMember(memberToSave)
 
-      // 1. Capture high-resolution front and back card images
+      // 1. Capture high-resolution full card image (front & back on plain transparent background)
+      let fullCardPng = ''
       let frontPng = ''
       let backPng = ''
       try {
+        if (dualCardRef.current) {
+          fullCardPng = await toPng(dualCardRef.current, {
+            pixelRatio: 2.5,
+            cacheBust: true,
+            backgroundColor: null, // Plain transparent background (no black box)
+          })
+        }
         const frontTarget = hiddenFrontRef.current || staticFrontRef.current || interactiveFrontRef.current
         const backTarget = hiddenBackRef.current || staticBackRef.current || interactiveBackRef.current
         if (frontTarget) {
@@ -287,6 +301,7 @@ export default function MembershipCardPage() {
           body: JSON.stringify({
             name: memberToSave.name || 'MEMBER',
             photo: memberToSave.photo,
+            cardFullImage: fullCardPng,
             cardFrontImage: frontPng,
             cardBackImage: backPng,
             state: memberToSave.state,
@@ -313,6 +328,7 @@ export default function MembershipCardPage() {
       }
 
       const safeName = (memberToSave.name || 'ISYDCI_MEMBER').trim().replace(/\s+/g, '_').toUpperCase()
+      const finalFullImage = backendSaved?.cardFullUrl || fullCardPng
       const finalFrontImage = backendSaved?.cardFrontUrl || frontPng
       const finalBackImage = backendSaved?.cardBackUrl || backPng
 
@@ -325,6 +341,7 @@ export default function MembershipCardPage() {
         status: 'Verified',
         cloudinaryFolder: `isydci/members/${safeName}`,
         photoUrl: memberToSave.photo,
+        cardFullUrl: finalFullImage,
         cardFrontUrl: finalFrontImage,
         cardBackUrl: finalBackImage,
       }
@@ -333,25 +350,23 @@ export default function MembershipCardPage() {
       setSavedDetails(newEntry)
       setSavedSuccess(true)
 
-      // 4. Automatically download BOTH Front PNG and Back PNG to user's device
-      if (finalFrontImage) {
-        await triggerFileDownload(finalFrontImage, `${safeName}_ID_FRONT.png`)
-      }
-      if (finalBackImage) {
-        setTimeout(async () => {
-          await triggerFileDownload(finalBackImage, `${safeName}_ID_BACK.png`)
-        }, 400)
+      // 4. Automatically download ONLY the FULL CARD (e.g. ISYDCI-3B00A07F_card.png) on plain transparent background
+      const fullCardFilename = `${finalMemberId}_card.png`
+      const cardToDownload = fullCardPng || finalFullImage
+      if (cardToDownload) {
+        await triggerFileDownload(cardToDownload, fullCardFilename)
       }
 
       // 5. Trigger Top-Right Corner Notification Toast
       setToastNotification({
         memberId: finalMemberId,
         name: memberToSave.name || 'MEMBER',
+        fullCardImg: cardToDownload,
         frontImg: finalFrontImage,
         backImg: finalBackImage,
         cloudinaryFolder: newEntry.cloudinaryFolder || `isydci/members/${safeName}`,
         photoUrl: newEntry.photoUrl || memberToSave.photo,
-        downloadedBoth: true,
+        downloadFilename: fullCardFilename,
       })
 
     } catch (err) {
@@ -513,7 +528,7 @@ export default function MembershipCardPage() {
                         <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>
-                      <span>Both Sides</span>
+                      <span>Full Card ({member.memberId || 'ISYDCI'}_card.png)</span>
                     </button>
                   </div>
                 </div>
@@ -805,7 +820,7 @@ export default function MembershipCardPage() {
                             <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs">✓</span>
                             <span>Member Registered &amp; Cloudinary Synced!</span>
                           </span>
-                          <span className="font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded border border-blue-200 shadow-xs">
+                          <span className="font-mono text-blue-700 font-bold bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs text-xs">
                             {savedDetails.memberId}
                           </span>
                         </div>
@@ -816,31 +831,24 @@ export default function MembershipCardPage() {
                           </code>
                         </div>
                         <div className="text-[11px] text-emerald-700 font-semibold pt-1 border-t border-emerald-200/60 flex items-center gap-1.5">
-                          <span>✓</span> Both Front &amp; Back PNG auto-downloaded to your device.
+                          <span>✓</span> Full card auto-downloaded as <strong className="font-mono text-emerald-950 font-bold">{savedDetails.memberId}_card.png</strong> on transparent background.
                         </div>
 
-                        {/* Interactive Buttons: View Both Images & Downloads */}
+                        {/* Interactive Buttons */}
                         <div className="pt-2 flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setViewModalOpen(true)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer"
                           >
-                            <span>👁️ View Both Cards</span>
+                            <span>👁️ View Full Card</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => triggerFileDownload(savedDetails.cardFrontUrl, `${(savedDetails.name || 'ISYDCI').trim().replace(/\s+/g, '_')}_ID_FRONT.png`)}
-                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer"
+                            onClick={downloadBoth}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer"
                           >
-                            <span>⬇️ Front PNG</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => triggerFileDownload(savedDetails.cardBackUrl, `${(savedDetails.name || 'ISYDCI').trim().replace(/\s+/g, '_')}_ID_BACK.png`)}
-                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer"
-                          >
-                            <span>⬇️ Back PNG</span>
+                            <span>⬇️ Download {savedDetails.memberId}_card.png</span>
                           </button>
                         </div>
                       </div>
@@ -909,12 +917,12 @@ export default function MembershipCardPage() {
             </div>
           </div>
 
-          {/* ================= HIDDEN COMBINED CARD FOR DUAL-SIDE PNG EXPORT & CLOUDINARY CAPTURE ================= */}
+          {/* ================= HIDDEN COMBINED CARD FOR DUAL-SIDE PNG EXPORT (PLAIN TRANSPARENT BACKGROUND) ================= */}
           <div className="overflow-hidden h-0 opacity-0 pointer-events-none">
             <div
               ref={dualCardRef}
-              className="inline-flex p-8 bg-slate-900 gap-8 items-center rounded-3xl"
-              style={{ width: '760px' }}
+              className="inline-flex p-4 bg-transparent gap-6 items-center select-none"
+              style={{ width: '740px', backgroundColor: 'transparent' }}
             >
               <CardFront ref={hiddenFrontRef} member={member} />
               <CardBack ref={hiddenBackRef} member={member} />
@@ -979,28 +987,21 @@ export default function MembershipCardPage() {
                 </div>
               </div>
 
-              {/* Action Buttons in Toast: View Both, Download Front, Download Back */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Action Buttons in Toast: View Card & Download Full Card */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setViewModalOpen(true)}
-                  className="col-span-3 sm:col-span-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-2 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer"
                 >
-                  <span>👁️ View Both</span>
+                  <span>👁️ View Card</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => triggerFileDownload(toastNotification.frontImg, `${toastNotification.name.replace(/\s+/g, '_')}_ID_FRONT.png`)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-2 rounded-xl text-[11px] flex items-center justify-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer"
+                  onClick={downloadBoth}
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-2.5 rounded-xl text-xs flex items-center justify-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer truncate"
                 >
-                  <span>⬇️ Front PNG</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => triggerFileDownload(toastNotification.backImg, `${toastNotification.name.replace(/\s+/g, '_')}_ID_BACK.png`)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-2 rounded-xl text-[11px] flex items-center justify-center gap-1 transition-all shadow-xs active:scale-95 cursor-pointer"
-                >
-                  <span>⬇️ Back PNG</span>
+                  <span>⬇️ {toastNotification.downloadFilename || `${toastNotification.memberId}_card.png`}</span>
                 </button>
               </div>
             </div>
@@ -1141,7 +1142,7 @@ export default function MembershipCardPage() {
                       onClick={downloadBoth}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>⬇️ Download Combined PNG</span>
+                      <span>⬇️ Download Full Card ({savedDetails?.memberId || member.memberId || 'ISYDCI'}_card.png)</span>
                     </button>
                     <button
                       type="button"

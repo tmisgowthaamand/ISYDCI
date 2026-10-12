@@ -18,6 +18,7 @@ export default function AdminMembers() {
 
   const cardFrontModalRef = useRef(null)
   const cardBackModalRef = useRef(null)
+  const dualCardModalRef = useRef(null)
 
   const showNotice = (msg) => {
     setActionNotice(msg)
@@ -101,21 +102,48 @@ export default function AdminMembers() {
     setTimeout(() => setCopiedToast(false), 2500)
   }
 
+  // Download Full Combined Card (Both Front & Back together on plain transparent background)
   const handleDownloadCard = async () => {
     if (!selectedMember) return
     try {
       setDownloading(true)
-      const node = cardFlipped ? cardBackModalRef.current : cardFrontModalRef.current
-      if (!node) return
-      const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
-      const link = document.createElement('a')
-      const name = selectedMember.name ? selectedMember.name.replace(/\s+/g, '_') : 'ISYDCI_MEMBER'
-      link.download = `${name}_${cardFlipped ? 'BACK' : 'FRONT'}.png`
-      link.href = dataUrl
-      link.click()
+      const filename = `${selectedMember.memberId || 'ISYDCI'}_card.png`
+      const node = dualCardModalRef.current
+
+      if (node) {
+        const dataUrl = await toPng(node, {
+          pixelRatio: 2.5,
+          cacheBust: true,
+          backgroundColor: null, // Plain transparent background (no black box)
+        })
+        const link = document.createElement('a')
+        link.download = filename
+        link.href = dataUrl
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else if (selectedMember.cardFullUrl) {
+        // Fallback to Cloudinary URL if available
+        try {
+          const res = await fetch(selectedMember.cardFullUrl)
+          const blob = await res.blob()
+          const blobUrl = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.download = filename
+          link.href = blobUrl
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1500)
+        } catch {
+          window.open(selectedMember.cardFullUrl, '_blank')
+        }
+      } else {
+        throw new Error('Card container not found')
+      }
     } catch (err) {
       console.error('Download card error:', err)
-      alert('Could not download image. Please try again.')
+      alert('Could not download card image. Please try again.')
     } finally {
       setDownloading(false)
     }
@@ -506,7 +534,7 @@ export default function AdminMembers() {
                     <path d="m21 17-3 3-3-3" />
                     <path d="M18 20V10a4 4 0 0 0-4-4H4" />
                   </svg>
-                  <span>{cardFlipped ? 'SEE CARD FRONT' : 'SEE CARD BACK'}</span>
+                  <span>FLIP CARD</span>
                 </button>
 
                 <button
@@ -520,7 +548,7 @@ export default function AdminMembers() {
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
-                  <span>{downloading ? 'GENERATING PNG...' : `DOWNLOAD ${cardFlipped ? 'BACK' : 'FRONT'} PNG`}</span>
+                  <span>{downloading ? 'GENERATING PNG...' : 'DOWNLOAD CARD'}</span>
                 </button>
 
                 <button
@@ -538,6 +566,28 @@ export default function AdminMembers() {
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Hidden Dual Card Container for Full 2-in-1 Card Download on Plain Transparent Background */}
+      {selectedMember && (
+        <div
+          style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            pointerEvents: 'none',
+            zIndex: -1,
+          }}
+        >
+          <div
+            ref={dualCardModalRef}
+            className="inline-flex p-4 bg-transparent gap-6 items-center select-none"
+            style={{ width: '740px', backgroundColor: 'transparent' }}
+          >
+            <CardFront member={selectedMember} />
+            <CardBack member={selectedMember} />
           </div>
         </div>
       )}

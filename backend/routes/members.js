@@ -51,6 +51,7 @@ router.post('/', async (req, res) => {
     const {
       name,
       photo,
+      cardFullImage,
       cardFrontImage,
       cardBackImage,
       state,
@@ -86,7 +87,16 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // 2. Upload Front ID Card Image to Cloudinary in user folder
+    // 2. Upload Full Combined ID Card (Front & Back on transparent background)
+    let cardFullUrl = ''
+    if (cardFullImage && cardFullImage.startsWith('data:image')) {
+      const uploadFullRes = await uploadToCloudinary(cardFullImage, cloudinaryUserFolder, 'id_card_full')
+      if (uploadFullRes && uploadFullRes.secure_url) {
+        cardFullUrl = uploadFullRes.secure_url
+      }
+    }
+
+    // 3. Upload Front ID Card Image to Cloudinary in user folder
     let cardFrontUrl = ''
     if (cardFrontImage && cardFrontImage.startsWith('data:image')) {
       const uploadFrontRes = await uploadToCloudinary(cardFrontImage, cloudinaryUserFolder, 'id_card_front')
@@ -95,7 +105,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // 3. Upload Back ID Card Image to Cloudinary in user folder
+    // 4. Upload Back ID Card Image to Cloudinary in user folder
     let cardBackUrl = ''
     if (cardBackImage && cardBackImage.startsWith('data:image')) {
       const uploadBackRes = await uploadToCloudinary(cardBackImage, cloudinaryUserFolder, 'id_card_back')
@@ -114,6 +124,7 @@ router.post('/', async (req, res) => {
       memberId: generatedId,
       photo: photoUrl,
       photoUrl,
+      cardFullUrl,
       cardFrontUrl,
       cardBackUrl,
       cloudinaryFolder: cloudinaryUserFolder,
