@@ -52,8 +52,6 @@ router.post('/', async (req, res) => {
       name,
       photo,
       cardFullImage,
-      cardFrontImage,
-      cardBackImage,
       state,
       district,
       assembly,
@@ -96,37 +94,17 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // 3. Upload Front ID Card Image to Cloudinary in user folder
-    let cardFrontUrl = ''
-    if (cardFrontImage && cardFrontImage.startsWith('data:image')) {
-      const uploadFrontRes = await uploadToCloudinary(cardFrontImage, cloudinaryUserFolder, 'id_card_front')
-      if (uploadFrontRes && uploadFrontRes.secure_url) {
-        cardFrontUrl = uploadFrontRes.secure_url
-      }
-    }
-
-    // 4. Upload Back ID Card Image to Cloudinary in user folder
-    let cardBackUrl = ''
-    if (cardBackImage && cardBackImage.startsWith('data:image')) {
-      const uploadBackRes = await uploadToCloudinary(cardBackImage, cloudinaryUserFolder, 'id_card_back')
-      if (uploadBackRes && uploadBackRes.secure_url) {
-        cardBackUrl = uploadBackRes.secure_url
-      }
-    }
-
     // Auto-generate Member ID if missing (Format matching Screenshot 2: ISYDCI-684DDC04)
     const hexCode = Math.random().toString(16).substring(2, 10).toUpperCase()
     const generatedId = memberId || `ISYDCI-${hexCode}`
 
-    // Save record to persistent database
+    // Save record to persistent database (only full card and profile photo stored)
     const saved = saveMember({
       name: name.toUpperCase(),
       memberId: generatedId,
       photo: photoUrl,
       photoUrl,
       cardFullUrl,
-      cardFrontUrl,
-      cardBackUrl,
       cloudinaryFolder: cloudinaryUserFolder,
       state: state ? state.toUpperCase() : 'TAMIL NADU',
       district: district ? district.toUpperCase() : '',

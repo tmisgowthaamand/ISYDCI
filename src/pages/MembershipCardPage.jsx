@@ -270,8 +270,6 @@ export default function MembershipCardPage() {
 
       // 1. Capture high-resolution full card image (front & back on plain transparent background)
       let fullCardPng = ''
-      let frontPng = ''
-      let backPng = ''
       try {
         if (dualCardRef.current) {
           fullCardPng = await toPng(dualCardRef.current, {
@@ -280,19 +278,11 @@ export default function MembershipCardPage() {
             backgroundColor: null, // Plain transparent background (no black box)
           })
         }
-        const frontTarget = hiddenFrontRef.current || staticFrontRef.current || interactiveFrontRef.current
-        const backTarget = hiddenBackRef.current || staticBackRef.current || interactiveBackRef.current
-        if (frontTarget) {
-          frontPng = await toPng(frontTarget, { pixelRatio: 3, cacheBust: true })
-        }
-        if (backTarget) {
-          backPng = await toPng(backTarget, { pixelRatio: 3, cacheBust: true })
-        }
       } catch (captureErr) {
         console.warn('Canvas capture notice:', captureErr)
       }
 
-      // 2. Post to backend server (uploads to Cloudinary in isydci/members/<USER_NAME>/)
+      // 2. Post to backend server (uploads ONLY full card & profile photo to Cloudinary in isydci/members/<USER_NAME>/)
       let backendSaved = null
       try {
         const res = await fetch(`${API_BASE_URL}/api/members`, {
@@ -302,8 +292,6 @@ export default function MembershipCardPage() {
             name: memberToSave.name || 'MEMBER',
             photo: memberToSave.photo,
             cardFullImage: fullCardPng,
-            cardFrontImage: frontPng,
-            cardBackImage: backPng,
             state: memberToSave.state,
             district: memberToSave.district,
             assembly: memberToSave.assembly,
@@ -329,10 +317,8 @@ export default function MembershipCardPage() {
 
       const safeName = (memberToSave.name || 'ISYDCI_MEMBER').trim().replace(/\s+/g, '_').toUpperCase()
       const finalFullImage = backendSaved?.cardFullUrl || fullCardPng
-      const finalFrontImage = backendSaved?.cardFrontUrl || frontPng
-      const finalBackImage = backendSaved?.cardBackUrl || backPng
 
-      // 3. Fallback/Sync with LocalStorage
+      // 3. Fallback/Sync with LocalStorage (Only storing full card and profile photo)
       const existing = JSON.parse(localStorage.getItem('isydci_members') || '[]')
       const newEntry = backendSaved || {
         ...memberToSave,
@@ -342,8 +328,6 @@ export default function MembershipCardPage() {
         cloudinaryFolder: `isydci/members/${safeName}`,
         photoUrl: memberToSave.photo,
         cardFullUrl: finalFullImage,
-        cardFrontUrl: finalFrontImage,
-        cardBackUrl: finalBackImage,
       }
       localStorage.setItem('isydci_members', JSON.stringify([newEntry, ...existing]))
 
@@ -362,8 +346,6 @@ export default function MembershipCardPage() {
         memberId: finalMemberId,
         name: memberToSave.name || 'MEMBER',
         fullCardImg: cardToDownload,
-        frontImg: finalFrontImage,
-        backImg: finalBackImage,
         cloudinaryFolder: newEntry.cloudinaryFolder || `isydci/members/${safeName}`,
         photoUrl: newEntry.photoUrl || memberToSave.photo,
         downloadFilename: fullCardFilename,
@@ -1063,21 +1045,13 @@ export default function MembershipCardPage() {
                     </div>
 
                     <div className="rounded-[24px] overflow-hidden shadow-2xl border border-slate-200/90 bg-white">
-                      {savedDetails?.cardFrontUrl ? (
-                        <img
-                          src={savedDetails.cardFrontUrl}
-                          alt="Front Card"
-                          className="w-[340px] h-[540px] object-contain select-none block"
-                        />
-                      ) : (
-                        <CardFront member={savedDetails || member} />
-                      )}
+                      <CardFront member={savedDetails || member} />
                     </div>
 
                     <div className="w-full">
                       <button
                         type="button"
-                        onClick={() => triggerFileDownload(savedDetails?.cardFrontUrl, `${(savedDetails?.name || member.name || 'ISYDCI').trim().replace(/\s+/g, '_')}_ID_FRONT.png`)}
+                        onClick={downloadFront}
                         className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
                       >
                         <span>⬇️ Download Front PNG</span>
@@ -1095,21 +1069,13 @@ export default function MembershipCardPage() {
                     </div>
 
                     <div className="rounded-[24px] overflow-hidden shadow-2xl border border-slate-200/90 bg-white">
-                      {savedDetails?.cardBackUrl ? (
-                        <img
-                          src={savedDetails.cardBackUrl}
-                          alt="Back Card"
-                          className="w-[340px] h-[540px] object-contain select-none block"
-                        />
-                      ) : (
-                        <CardBack member={savedDetails || member} />
-                      )}
+                      <CardBack member={savedDetails || member} />
                     </div>
 
                     <div className="w-full">
                       <button
                         type="button"
-                        onClick={() => triggerFileDownload(savedDetails?.cardBackUrl, `${(savedDetails?.name || member.name || 'ISYDCI').trim().replace(/\s+/g, '_')}_ID_BACK.png`)}
+                        onClick={downloadBack}
                         className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
                       >
                         <span>⬇️ Download Back PNG</span>
