@@ -202,13 +202,16 @@ export default function MembershipCardPage() {
     }
   }
 
-  // Handle PNG Downloads
+  // Handle PNG Downloads with High-DPI Font & Image Clarity
   const downloadFront = async () => {
     try {
       setDownloading(true)
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready
+      }
       const node = viewMode === 'sideBySide' ? staticFrontRef.current : interactiveFrontRef.current
       if (!node) throw new Error('Card Front not found')
-      const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
+      const dataUrl = await toPng(node, { pixelRatio: 3.5, cacheBust: true })
       const filename = member.name ? member.name.trim().replace(/\s+/g, '_') : 'ISYDCI_MEMBER'
       await triggerFileDownload(dataUrl, `${filename}_ID_FRONT.png`)
     } catch (err) {
@@ -222,9 +225,12 @@ export default function MembershipCardPage() {
   const downloadBack = async () => {
     try {
       setDownloading(true)
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready
+      }
       const node = viewMode === 'sideBySide' ? staticBackRef.current : interactiveBackRef.current
       if (!node) throw new Error('Card Back not found')
-      const dataUrl = await toPng(node, { pixelRatio: 3, cacheBust: true })
+      const dataUrl = await toPng(node, { pixelRatio: 3.5, cacheBust: true })
       const filename = member.name ? member.name.trim().replace(/\s+/g, '_') : 'ISYDCI_MEMBER'
       await triggerFileDownload(dataUrl, `${filename}_ID_BACK.png`)
     } catch (err) {
@@ -238,10 +244,13 @@ export default function MembershipCardPage() {
   const downloadBoth = async () => {
     try {
       setDownloading(true)
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready
+      }
       const node = dualCardRef.current
       if (!node) throw new Error('Combined card container not found')
       const dataUrl = await toPng(node, {
-        pixelRatio: 2.5,
+        pixelRatio: 3.5,
         cacheBust: true,
         backgroundColor: null, // Plain transparent background (no black box)
       })
@@ -268,14 +277,17 @@ export default function MembershipCardPage() {
       const memberToSave = { ...member, memberId: finalMemberId }
       setMember(memberToSave)
 
-      // 1. Capture high-resolution full card image (front & back on plain transparent background)
+      // 1. Capture ultra-crisp full card image (front & back on plain transparent background)
       let fullCardPng = ''
       let frontPng = ''
       let backPng = ''
       try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready
+        }
         if (dualCardRef.current) {
           fullCardPng = await toPng(dualCardRef.current, {
-            pixelRatio: 2.5,
+            pixelRatio: 3.5,
             cacheBust: true,
             backgroundColor: null, // Plain transparent background (no black box)
           })
@@ -283,10 +295,10 @@ export default function MembershipCardPage() {
         const frontTarget = hiddenFrontRef.current || staticFrontRef.current || interactiveFrontRef.current
         const backTarget = hiddenBackRef.current || staticBackRef.current || interactiveBackRef.current
         if (frontTarget) {
-          frontPng = await toPng(frontTarget, { pixelRatio: 2.5, cacheBust: true })
+          frontPng = await toPng(frontTarget, { pixelRatio: 3.5, cacheBust: true })
         }
         if (backTarget) {
-          backPng = await toPng(backTarget, { pixelRatio: 2.5, cacheBust: true })
+          backPng = await toPng(backTarget, { pixelRatio: 3.5, cacheBust: true })
         }
       } catch (captureErr) {
         console.warn('Canvas capture notice:', captureErr)

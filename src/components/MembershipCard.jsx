@@ -46,22 +46,29 @@ export const CardFront = forwardRef(function CardFront({ member, className = '' 
           <path d="M-10,63 C70,90 150,40 250,66 C295,78 325,64 360,58" stroke="#f59e0b" strokeWidth="2.5" />
         </svg>
 
-        {/* Left Official Logo */}
-        <div className="absolute left-3.5 bottom-1.5 z-20 flex items-center">
-          <div className="w-[48px] h-[48px] rounded-full p-[2px] bg-white shadow-md ring-2 ring-[#0b1e3f] flex items-center justify-center overflow-hidden">
+        {/* Left Official Logo - Enlarged, Crisp & High Definition */}
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex items-center">
+          <div className="w-[66px] h-[66px] rounded-full p-[2px] bg-white shadow-lg ring-2 ring-[#0b1e3f] flex items-center justify-center overflow-hidden shrink-0">
             <img
               src="/logo.png"
               alt="ISYDCI Logo"
               className="w-full h-full object-contain rounded-full"
+              style={{
+                imageRendering: '-webkit-optimize-contrast',
+                filter: 'contrast(1.1) brightness(1.02)',
+              }}
             />
           </div>
         </div>
 
-        {/* Header Texts (English Only) */}
-        <div className="relative z-10 pt-2.5 px-3 pl-[66px] text-center">
-          <h1 className="text-[#0b1e3f] text-[10.5px] font-extrabold tracking-tight leading-tight font-['Montserrat'] uppercase">
+        {/* Header Texts (English Only - High Contrast & Sharp) */}
+        <div className="relative z-10 flex flex-col justify-center h-full pl-[78px] pr-2.5 text-center">
+          <h1 className="text-[#0b1e3f] text-[11px] font-black tracking-tight leading-[1.25] font-['Montserrat'] uppercase drop-shadow-xs">
             {orgName}
           </h1>
+          <span className="text-[8.5px] font-black text-blue-900 tracking-wider uppercase mt-1">
+            VISION OF SPORTS • INDIA
+          </span>
         </div>
       </div>
 
@@ -247,23 +254,30 @@ export const CardBack = forwardRef(function CardBack({ member, className = '' },
           <path d="M-10,75 C70,105 170,40 270,85 C310,100 335,90 360,80 L360,118 L-10,118 Z" fill="#ffffff" />
         </svg>
 
-        {/* Top-Left Circular Logo Badge */}
-        <div className="absolute top-2.5 left-3.5 z-20">
-          <div className="w-[66px] h-[66px] rounded-full p-[2.5px] bg-white shadow-lg ring-2 ring-[#0b1e3f] flex items-center justify-center">
+        {/* Top-Left Circular Logo Badge - Enlarged & Crisp */}
+        <div className="absolute top-2.5 left-3 z-20">
+          <div className="w-[74px] h-[74px] rounded-full p-[2.5px] bg-white shadow-xl ring-2 ring-[#0b1e3f] flex items-center justify-center overflow-hidden shrink-0">
             <img
               src="/logo.png"
               alt="Logo"
               className="w-full h-full object-contain rounded-full"
+              style={{
+                imageRendering: '-webkit-optimize-contrast',
+                filter: 'contrast(1.1) brightness(1.02)',
+              }}
             />
           </div>
         </div>
 
-        <div className="absolute top-3 right-4 z-10 text-right">
-          <div className="text-[#0b1e3f] text-[11px] font-extrabold tracking-wide">
+        <div className="absolute top-2.5 right-3.5 z-10 text-right flex flex-col justify-center">
+          <div className="text-[#0b1e3f] text-[12.5px] font-black tracking-tight font-['Montserrat'] uppercase leading-tight">
             ISYDCI MEMBERSHIP CARD
           </div>
-          <div className="text-slate-500 text-[9px] font-semibold">
+          <div className="text-blue-900 text-[10px] font-extrabold tracking-wider uppercase mt-1">
             OFFICIAL MEMBER IDENTITY
+          </div>
+          <div className="text-amber-600 text-[8.5px] font-black tracking-widest uppercase mt-0.5">
+            VISION OF SPORTS • INDIA
           </div>
         </div>
       </div>

@@ -107,12 +107,15 @@ export default function AdminMembers() {
     if (!selectedMember) return
     try {
       setDownloading(true)
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready
+      }
       const filename = `${selectedMember.memberId || 'ISYDCI'}_card.png`
       const node = dualCardModalRef.current
 
       if (node) {
         const dataUrl = await toPng(node, {
-          pixelRatio: 2.5,
+          pixelRatio: 3.5,
           cacheBust: true,
           backgroundColor: null, // Plain transparent background (no black box)
         })
