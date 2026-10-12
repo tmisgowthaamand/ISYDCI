@@ -1,0 +1,26 @@
+[
+  {
+    "name": "HARISH S",
+    "memberId": "ISYDCI-AC5DF1F8",
+    "photo": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1791800494/isydci/members/HARISH_S/profile_photo.jpg",
+    "photoUrl": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1791800494/isydci/members/HARISH_S/profile_photo.jpg",
+    "cardFrontUrl": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1791800496/isydci/members/HARISH_S/id_card_front.png",
+    "cardBackUrl": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1791800497/isydci/members/HARISH_S/id_card_back.png",
+    "cloudinaryFolder": "isydci/members/HARISH_S",
+    "state": "TAMIL NADU",
+    "district": "CHENNAI",
+    "assembly": "velachery",
+    "zone": "CHENNAI ZONE",
+    "dob": "04 May 1992",
+    "age": "34",
+    "bloodGroup": "B-",
+    "contact": "8903163123",
+    "address": "5/79, Perumal Koil Street,\nSadanandapuram, Thandalam,\nTamil Nadu 600128",
+    "status": "Verified",
+    "business": "No business",
+    "joinedDate": "12 Oct 2026",
+    "id": "mem-1791800498943",
+    "createdAt": "2026-10-12T10:21:38.943Z",
+    "updatedAt": "2026-10-12T10:21:38.943Z"
+  }
+]

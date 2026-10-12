@@ -1,0 +1,17 @@
+{
+  "name": "isydci-backend",
+  "version": "1.0.0",
+  "description": "ISYDCI ID Card & Member Management Backend API",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

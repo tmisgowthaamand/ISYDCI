@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ISYDCI — International Sports & Youth Development Campaign of India</title>
+    <meta name="description" content="Revolutionizing India's sports ecosystem. Elevating athletes from every community to the world stage." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Preload critical images -->
+    <link rel="preload" as="image" href="/events/10.png" />
+    <link rel="preload" as="image" href="/events/7.png" />
+    <link rel="preload" as="image" href="/logo.png" />
+    <link rel="preload" as="image" href="/athletes/1.png" />
+    <link rel="preload" as="image" href="/athletes/2.png" />
+    <link rel="preload" as="image" href="/athletes/3.png" />
+    <link rel="preload" as="image" href="/athletes/4.png" />
+    <style>
+      #preloader{position:fixed;inset:0;z-index:9999;background:#0b1e3f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .5s,visibility .5s}
+      #preloader.hide{opacity:0;visibility:hidden}
+      #preloader img{width:72px;height:72px;border-radius:50%;animation:pulse 1.4s ease-in-out infinite}
+      #preloader span{color:#fff;font-family:'Montserrat',sans-serif;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;opacity:.8}
+      .loader-bar{width:160px;height:3px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden}
+      .loader-bar::after{content:'';display:block;height:100%;width:40%;background:linear-gradient(90deg,#2f9e44,#51c466);border-radius:4px;animation:slide 1.2s ease-in-out infinite}
+      @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.7}}
+      @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
+    </style>
+  </head>
+  <body>
+    <!-- Preloader -->
+    <div id="preloader">
+      <img src="/logo.png" alt="ISYDCI" />
+      <span>Loading</span>
+      <div class="loader-bar"></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
