@@ -489,59 +489,58 @@ export default function MembershipCardPage() {
                     Instant Download Options (High-Res PNG)
                   </h4>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <button
-                      type="button"
-                      disabled={downloading}
-                      onClick={downloadFront}
-                      className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
-                      title="Download Front Side PNG"
-                    >
-                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                      <span>Front PNG</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={downloading}
-                      onClick={downloadBack}
-                      className="bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 whitespace-nowrap"
-                      title="Download Back Side PNG"
-                    >
-                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                      <span>Back PNG</span>
-                    </button>
-
+                  <div className="space-y-2.5">
+                    {/* Primary Hero Button: Full 2-in-1 Combined Card with Auto-Generated Member Code */}
                     <button
                       type="button"
                       disabled={downloading}
                       onClick={downloadBoth}
-                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-blue-600/20 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                      className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-extrabold py-3 px-4 rounded-xl text-xs sm:text-sm flex flex-wrap items-center justify-center gap-2 shadow-md shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 border border-blue-500 overflow-hidden"
                       title={`Download Full Combined Card (${member.memberId || 'ISYDCI'}_card.png)`}
                     >
-                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="7 10 12 15 17 10" />
                         <line x1="12" y1="15" x2="12" y2="3" />
                       </svg>
-                      <span>Full Card PNG</span>
+                      <span className="shrink-0">Full Card PNG</span>
+                      <span className="font-mono text-[11px] font-bold bg-blue-700/80 px-2.5 py-0.5 rounded-md border border-blue-400/40 truncate max-w-[240px]">
+                        {member.memberId || 'ISYDCI'}_card.png
+                      </span>
                     </button>
-                  </div>
 
-                  {/* Download Filename Badge */}
-                  <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                    <span>Full Card saves as:</span>
-                    <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                      {member.memberId || 'ISYDCI'}_card.png
-                    </span>
+                    {/* Secondary Individual Side Buttons */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        disabled={downloading}
+                        onClick={downloadFront}
+                        className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 border border-slate-700 whitespace-nowrap overflow-hidden"
+                        title="Download Front Side PNG"
+                      >
+                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span className="truncate">Front PNG</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={downloading}
+                        onClick={downloadBack}
+                        className="w-full bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 border border-slate-700 whitespace-nowrap overflow-hidden"
+                        title="Download Back Side PNG"
+                      >
+                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span className="truncate">Back PNG</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
