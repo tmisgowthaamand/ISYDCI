@@ -16,25 +16,70 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') })
 const app = express()
 const PORT = process.env.PORT || 5000
 
-// Middleware
-app.use(cors({ origin: '*' }))
+// In-memory buffer of recent requests for live web inspection
+const recentLiveLogs = []
+
+// Comprehensive CORS setup explicitly supporting Vercel and all clients
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Client'],
+}))
+
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Root Endpoint (Fixes "Cannot GET /" when opening Render URL)
+// Live Request Logger Middleware (Visible in Render Logs console and /api/live-logs)
+app.use((req, res, next) => {
+  const start = Date.now()
+  const origin = req.headers.origin || req.headers.referer || 'direct'
+  const isVercel = origin.includes('isydci.vercel.app')
+  const clientTag = isVercel ? '🟢 [VERCEL: isydci.vercel.app]' : `🌐 [${origin}]`
+
+  res.on('finish', () => {
+    const duration = Date.now() - start
+    const statusIcon = res.statusCode >= 400 ? '❌' : '✅'
+    const logLine = `${statusIcon} ${new Date().toISOString()} | ${req.method} ${req.originalUrl} | Status: ${res.statusCode} | ${duration}ms | Client: ${clientTag}`
+    console.log(logLine)
+
+    if (req.method === 'POST' && req.body?.name) {
+      console.log(`   ↳ [PAYLOAD] Member: "${req.body.name}", ID: "${req.body.memberId || 'AUTO'}", Status: "${req.body.status || 'Verified'}"`)
+    }
+
+    recentLiveLogs.unshift({
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration: `${duration}ms`,
+      client: clientTag,
+      origin,
+      payloadSummary: req.body?.name ? `Member: ${req.body.name}` : undefined,
+    })
+    if (recentLiveLogs.length > 50) recentLiveLogs.pop()
+  })
+
+  next()
+})
+
+// Root Endpoint (Displays live connection info and status)
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'ISYDCI Official Membership & Cloudinary API is running live 🚀',
-    version: '1.0.0',
-    status: 'online',
+    service: 'ISYDCI Cloudinary & Membership API',
+    status: 'ONLINE & LIVE',
+    frontend: 'https://isydci.vercel.app/',
+    backend: 'https://isydci.onrender.com',
+    liveLogging: 'ACTIVE — Real-time request monitoring enabled',
     endpoints: {
+      liveLogs: '/api/live-logs',
       health: '/api/health',
       members: '/api/members',
       memberById: '/api/members/:id',
       stats: '/api/stats',
       adminAuth: '/api/auth/login',
     },
+    totalCapturedRequests: recentLiveLogs.length,
     timestamp: new Date().toISOString(),
   })
 })
@@ -43,7 +88,22 @@ app.get('/api', (req, res) => {
   res.json({
     success: true,
     service: 'ISYDCI API Gateway',
+    frontend: 'https://isydci.vercel.app/',
+    backend: 'https://isydci.onrender.com',
     status: 'online',
+    timestamp: new Date().toISOString(),
+  })
+})
+
+// Live Logs Web Inspection Endpoint
+app.get('/api/live-logs', (req, res) => {
+  res.json({
+    success: true,
+    service: 'ISYDCI Live Request Logs',
+    frontendUrl: 'https://isydci.vercel.app/',
+    backendUrl: 'https://isydci.onrender.com',
+    totalRequestsCaptured: recentLiveLogs.length,
+    recentRequests: recentLiveLogs,
     timestamp: new Date().toISOString(),
   })
 })
@@ -54,7 +114,8 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     service: 'ISYDCI Membership & Cloudinary API',
     timestamp: new Date().toISOString(),
-    frontendUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173',
+    frontendUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || 'https://isydci.vercel.app/',
+    backendUrl: 'https://isydci.onrender.com',
     cloudinaryConfigured: !!(process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME),
     adminConfigured: !!(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD),
   })
