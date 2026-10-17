@@ -1,5 +1,28 @@
 [
   {
+    "name": "DEEPU KUMAR",
+    "memberId": "ISYDCI-684DDC04",
+    "photo": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1792243258/isydci/members/DEEPU_KUMAR/profile_photo.jpg",
+    "photoUrl": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1792243258/isydci/members/DEEPU_KUMAR/profile_photo.jpg",
+    "cardFullUrl": "",
+    "cloudinaryFolder": "isydci/members/DEEPU_KUMAR",
+    "state": "TAMIL NADU",
+    "district": "CHENNAI",
+    "assembly": "T nagar",
+    "zone": "CHENNAI ZONE",
+    "dob": "15 Aug 1995",
+    "age": "31",
+    "bloodGroup": "A-",
+    "contact": "+91 91234 56789",
+    "address": "No. 12, 3rd Street, TNagar chennai - 600042, ",
+    "status": "Verified",
+    "business": "No business",
+    "joinedDate": "17 Oct 2026",
+    "id": "mem-1792243259635",
+    "createdAt": "2026-10-17T13:20:59.635Z",
+    "updatedAt": "2026-10-17T13:20:59.635Z"
+  },
+  {
     "name": "KARTHIK",
     "memberId": "ISYDCI-24969ADE",
     "photo": "https://res.cloudinary.com/dvfg6e0vu/image/upload/v1792046620/isydci/members/KARTHIK/profile_photo.jpg",

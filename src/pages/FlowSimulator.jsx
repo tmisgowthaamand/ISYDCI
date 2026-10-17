@@ -4,6 +4,7 @@ import { CardFront, CardBack } from '../components/MembershipCard.jsx'
 import isydciFlowData from '../data/isydci_flow_v1.json'
 import isydciLabels from '../data/isydci.labels.json'
 import PhotoCropModal from '../components/PhotoCropModal.jsx'
+import { API_BASE_URL } from '../config/api.js'
 
 const indianStatesAndUTs = [
   'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam',
@@ -22,13 +23,19 @@ export default function FlowSimulator() {
   const [flow, setFlow] = useState(isydciFlowData)
   const [currentFlowName, setCurrentFlowName] = useState('ISYDCI Official Bot v1 (isydci_flow_v1.json)')
   const [showBackendReplies, setShowBackendReplies] = useState(true)
-  const [backendServer, setBackendServer] = useState('Local Dev (localhost:5000)')
+  const [backendServer, setBackendServer] = useState(
+    typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+      ? 'Production (isydci.com)'
+      : 'Local Dev (localhost:5000)'
+  )
   const [dbMembers, setDbMembers] = useState([])
   const [selectedUser, setSelectedUser] = useState({
-    name: 'Amit Kumar',
-    phone: '9876543210',
-    memberId: 'ISYDCI-684DDC04',
-    sport: 'Boxing',
+    name: '',
+    phone: '9123456789',
+    contact: '+91 91234 56789',
+    memberId: '',
+    isUnregistered: true,
+    sport: 'ATHLETICS',
     state: 'Tamil Nadu'
   })
   const [cardViewTab, setCardViewTab] = useState('combined') // 'combined' | 'front' | 'back'
@@ -56,8 +63,8 @@ export default function FlowSimulator() {
   const [customPhone, setCustomPhone] = useState('')
   const hiddenDualRef = useRef(null)
 
-  // API base URL
-  const apiBaseUrl = 'http://localhost:5000'
+  // API base URL from centralized config (relative empty string on production, http://localhost:5000 in dev)
+  const apiBaseUrl = API_BASE_URL
   const [backendStatus, setBackendStatus] = useState('online') // 'online' | 'offline' | 'checking'
 
   // Chat & Navigation State
@@ -340,12 +347,12 @@ export default function FlowSimulator() {
   const warnCount = checks.filter(c => c.type === 'warning').length
   const noteCount = checks.filter(c => c.type === 'note').length
 
-  // Fetch all registered members from localhost:5000 on mount & handle URL query params (?id=... or ?phone=...)
+  // Fetch all registered members on mount & handle URL query params (?id=... or ?phone=...)
   useEffect(() => {
     fetch(`${apiBaseUrl}/api/members`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d.success && Array.isArray(d.members)) {
+        if (d && d.success && Array.isArray(d.members)) {
           setDbMembers(d.members)
           const params = new URLSearchParams(window.location.search)
           const qId = params.get('id')
@@ -362,12 +369,13 @@ export default function FlowSimulator() {
             }
           }
 
-          // Otherwise sync selected user
-          const found = d.members.find(m => m.contact === selectedUser.phone || m.memberId === selectedUser.memberId)
-          if (found) {
-            setSelectedUser(found)
-          } else if (d.members.length > 0 && !selectedUser.isUnregistered) {
-            setSelectedUser(d.members[0])
+          // Otherwise sync selected user if currently matched
+          if (selectedUser.memberId || (!selectedUser.isUnregistered && selectedUser.phone)) {
+            const cleanPhone = (selectedUser.phone || selectedUser.contact || '').replace(/\D/g, '')
+            const found = d.members.find(m => (m.contact || '').replace(/\D/g, '') === cleanPhone || m.memberId === selectedUser.memberId)
+            if (found) {
+              setSelectedUser({ ...found, isUnregistered: false })
+            }
           }
         }
       })
@@ -383,17 +391,22 @@ export default function FlowSimulator() {
     setRedoStack([])
 
     let regMember = null
-    const isExplicitlyUnregistered = Boolean(userToTest.isUnregistered || !userToTest.phone || userToTest.phone === '9123456789')
+    const cleanPhone = (userToTest.phone || userToTest.contact || '').replace(/\D/g, '')
+    const isExplicitlyUnregistered = Boolean(userToTest.isUnregistered || !cleanPhone || cleanPhone === '9123456789')
     
-    if (!isExplicitlyUnregistered) {
+    if (!isExplicitlyUnregistered && cleanPhone) {
       try {
-        const res = await fetch(`${apiBaseUrl}/api/members/phone/${userToTest.phone}`)
-        const data = await res.json()
-        if (data.success && data.member) {
-          regMember = data.member
+        const res = await fetch(`${apiBaseUrl}/api/members/phone/${encodeURIComponent(cleanPhone)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.member) {
+            regMember = data.member
+          }
+        } else {
+          regMember = dbMembers.find(m => (m.contact || '').replace(/\D/g, '') === cleanPhone)
         }
       } catch (_) {
-        regMember = dbMembers.find(m => (m.contact || '').replace(/\D/g, '') === (userToTest.phone || '').replace(/\D/g, ''))
+        regMember = dbMembers.find(m => (m.contact || '').replace(/\D/g, '') === cleanPhone)
       }
     }
 
@@ -767,16 +780,20 @@ export default function FlowSimulator() {
 
       // Fetch latest member record by phone
       let memberObj = selectedUser
-      fetch(`${apiBaseUrl}/api/members/phone/${selectedUser.phone}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.success && d.member) {
-            memberObj = d.member
-            setSelectedUser(d.member)
-          }
-        })
-        .catch(() => {})
-        .finally(() => {
+      const cleanPhone = (selectedUser.phone || selectedUser.contact || '').replace(/\D/g, '')
+      const fetchPromise = cleanPhone
+        ? fetch(`${apiBaseUrl}/api/members/phone/${encodeURIComponent(cleanPhone)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d && d.success && d.member) {
+                memberObj = d.member
+                setSelectedUser(d.member)
+              }
+            })
+            .catch(() => {})
+        : Promise.resolve()
+
+      fetchPromise.finally(() => {
           newMsgs.push({
             id: `backend-${Date.now()}`,
             type: 'backend',
@@ -3176,18 +3193,18 @@ export default function FlowSimulator() {
               </label>
             </div>
 
-            {/* Backend connection indicator (Localhost 5000) */}
+            {/* Backend connection indicator */}
             <div className="mt-2.5">
               <div 
                 onClick={checkBackendHealth}
                 className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-slate-50/80 text-slate-800 flex items-center justify-between font-mono cursor-pointer hover:bg-slate-100 transition-colors"
                 title="Click to re-check backend health"
               >
-                <span className="font-semibold flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${backendStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span>http://localhost:5000</span>
+                <span className="font-semibold flex items-center gap-1.5 truncate pr-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${backendStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span className="truncate">{apiBaseUrl || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'Production API')}</span>
                 </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${
                   backendStatus === 'online' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                 }`}>
                   <span>{backendStatus === 'online' ? 'ONLINE' : 'OFFLINE'}</span>
