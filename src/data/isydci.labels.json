@@ -1,0 +1,23 @@
+{
+  "backend_only": [
+    "My Membership Card",
+    "Download Card",
+    "Share Card",
+    "View & Download Card"
+  ],
+  "dual": [
+    "Register Athlete",
+    "Submit Registration"
+  ],
+  "opens_wacto": [
+    "About ISYDCI",
+    "Official Website",
+    "Contact Support",
+    "Next: Date of Birth",
+    "Next: Address Info",
+    "Next: Upload Photo",
+    "Next: Review Details",
+    "View Membership Card",
+    "Main Menu"
+  ]
+}

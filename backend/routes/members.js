@@ -31,6 +31,25 @@ router.get('/stats', (req, res) => {
   }
 })
 
+// GET /api/members/phone/:phone — Lookup member by phone number
+router.get('/phone/:phone', (req, res) => {
+  try {
+    const rawPhone = (req.params.phone || '').replace(/\D/g, '')
+    const members = getAllMembers()
+    const member = members.find(m => {
+      const cleanContact = (m.contact || '').replace(/\D/g, '')
+      return cleanContact && (cleanContact.endsWith(rawPhone) || rawPhone.endsWith(cleanContact))
+    })
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'No registered member found for this phone number' })
+    }
+    res.json({ success: true, member })
+  } catch (error) {
+    console.error('[Error fetching member by phone]:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
 // GET /api/members/:id — Single member details
 router.get('/:id', (req, res) => {
   try {

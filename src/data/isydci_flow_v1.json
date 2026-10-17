@@ -1,0 +1,862 @@
+{
+  "chatbot": {
+    "name": "ISYDCI Official Bot v2 (EDMS Pattern)"
+  },
+  "nodes": [
+    {
+      "nodeId": "root",
+      "type": "interactive",
+      "name": "ISYDCI Official Welcome & Menu",
+      "interactiveId": null,
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 100,
+        "y": 100
+      },
+      "keywords": [
+        "hi",
+        "hello",
+        "hey",
+        "start",
+        "menu",
+        "isydci"
+      ],
+      "data": {
+        "interactiveType": "list",
+        "body": "🏆 *Welcome to Indian Sports Youth Development Council of India (ISYDCI)*!\n\nOfficial National Sports Council accreditation & athlete membership portal.\n\n📍 Ministry Reg No: 49/1997 | New Delhi HQ\n\nPlease tap below to choose an option:",
+        "header": {
+          "type": "text",
+          "text": "ISYDCI National Council"
+        },
+        "footer": "Official WhatsApp Athlete Portal",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "644018fb-c997-4f4a-b7d7-963d266579f9",
+                "title": "Choose Option"
+              }
+            }
+          ],
+          "sections": [
+            {
+              "title": "Athlete Membership",
+              "rows": [
+                {
+                  "id": "9c7301c2-4522-4696-9524-a7621814eb20",
+                  "title": "Register Athlete",
+                  "description": "New membership registration & ID card issuance"
+                },
+                {
+                  "id": "538d56d3-8a8f-4e04-9caa-19d2964781fd",
+                  "title": "My Membership Card",
+                  "description": "View & download front & back official ID card"
+                }
+              ]
+            },
+            {
+              "title": "Council Information",
+              "rows": [
+                {
+                  "id": "deb5abc7-d95d-40bd-a889-0d543c664d48",
+                  "title": "About ISYDCI",
+                  "description": "Council accreditation & ministry recognition 49/1997"
+                },
+                {
+                  "id": "f8737df3-5cad-4858-a807-46523fde345d",
+                  "title": "Official Website",
+                  "description": "Visit https://isydci.com for athlete portal"
+                },
+                {
+                  "id": "5d82602b-0a0a-46b3-b25c-c76c5e3c6e23",
+                  "title": "Contact Support",
+                  "description": "Helpline: +91-99946 27551 & office details"
+                }
+              ]
+            }
+          ],
+          "button": "Choose Option"
+        }
+      }
+    },
+    {
+      "nodeId": "f74bf881-a7f8-4b20-bf6b-ac1969ffdcef",
+      "type": "interactive",
+      "name": "About ISYDCI",
+      "interactiveId": "deb5abc7-d95d-40bd-a889-0d543c664d48",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 500,
+        "y": -200
+      },
+      "keywords": [
+        "About ISYDCI"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🏛️ *About ISYDCI National Sports Council*\n\nIndian Sports & Youth Development Campaign (ISYDCI) is established under Society Registration Act (Reg No: 49/1997).\n\n🌟 *Key Objectives:*\n• Official athlete accreditation & verified digital membership card.\n• Organizing national trials, state selection camps, and national championships.\n• Official event venue: Talkatora Indoor Stadium, New Delhi.\n\n📍 Headquarters: VB Bhavan, Room No. 308, Rafi Marg, Sansad Marg, New Delhi – 110001\n👤 Founder & National President: Visanath Shetty",
+        "header": {
+          "type": "text",
+          "text": "Council Accreditation"
+        },
+        "footer": "Ministry Reg: 49/1997",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "6fdf3bec-85ce-4e2b-bf9e-8ff12268cb1b",
+                "title": "Official Website"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "66381949-e4f9-4f62-bf8d-392622d288a9",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "e7b9c40d-18b9-4764-a658-3ddc00999b8a",
+      "type": "interactive",
+      "name": "Official Website",
+      "interactiveId": "f8737df3-5cad-4858-a807-46523fde345d",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 500,
+        "y": 0
+      },
+      "keywords": [
+        "Official Website"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🌐 *Official ISYDCI Web Portal*\n\nVisit our official website to verify athlete credentials, view national championship fixtures, and download accreditation certificates:\n\n🔗 *Website:* https://isydci.com\n\n(Accredited under Society Reg No: 49/1997 | New Delhi HQ)",
+        "header": {
+          "type": "text",
+          "text": "Official Portal"
+        },
+        "footer": "https://isydci.com",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "eebbb4e5-d230-4295-8d01-d998d1911dfa",
+                "title": "Contact Support"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "eea15b79-d4ea-43f0-b9f1-1f599023cd73",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "df3ca543-3c43-45c4-a082-a18ee7d57d8d",
+      "type": "interactive",
+      "name": "Contact Support",
+      "interactiveId": "5d82602b-0a0a-46b3-b25c-c76c5e3c6e23",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 500,
+        "y": 200
+      },
+      "keywords": [
+        "Contact Support"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📞 *ISYDCI Council Secretariat & Help Desk*\n\n📱 *Helpline / WhatsApp:* +91-99946 27551\n📧 *Email:* support@isydci.com\n🌐 *Website:* https://isydci.com\n\n📍 *National Headquarters:*\nVB Bhavan, Room No. 308, Rafi Marg, Sansad Marg, New Delhi – 110001\n\nOffice Hours: Mon – Sat, 9:30 AM to 6:00 PM IST",
+        "header": {
+          "type": "text",
+          "text": "Helpline & Office"
+        },
+        "footer": "+91-99946 27551",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "f99ed210-cc0f-4b25-9abf-fb102b9c05a7",
+                "title": "About ISYDCI"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "784ce6e6-ab30-4df1-ae4f-2b215fa52436",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "8d182d5e-15e7-472e-8b4b-0d7fff75930d",
+      "type": "interactive",
+      "name": "Registration: Enter Full Name",
+      "interactiveId": "9c7301c2-4522-4696-9524-a7621814eb20",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 900,
+        "y": -200
+      },
+      "keywords": [
+        "Register Athlete"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📝 *Athlete Registration (Step 1/5)*\n\nPlease enter your *FULL NAME* (in UPPERCASE) as it will appear on your official ISYDCI Membership Card:\n\n💬 *Type your full name in the chat below* (e.g. `DINESH` or `LAKSHAN KARTHIK`), or tap to use sample:",
+        "header": {
+          "type": "text",
+          "text": "Athlete Name"
+        },
+        "footer": "Step 1 of 5",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "c182bc2f-c78d-48bd-81c0-aa42a2bfb04e",
+                "title": "Use Sample Name"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "0e57232e-7eb7-4734-bcbf-ef7671ac05ab",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "46d7df9b-de50-47cc-b14d-25166a366c5d",
+      "type": "interactive",
+      "name": "Registration: Date of Birth & Age",
+      "interactiveId": "c182bc2f-c78d-48bd-81c0-aa42a2bfb04e",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 1200,
+        "y": -200
+      },
+      "keywords": [
+        "Use Sample Name"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🎂 *Date of Birth & Age (Step 2/5)*\n\nThank you! Now please enter your *Date of Birth* and *Blood Group*:\n\nExample format: `15 Aug 1994, B+`\n\n💬 *Type your DOB & Blood Group in the chat below*, or tap to continue:",
+        "header": {
+          "type": "text",
+          "text": "Date of Birth"
+        },
+        "footer": "Step 2 of 5",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "b4f7a75a-4b7a-4baf-aa51-2bc16404b47c",
+                "title": "15 Aug 1994 (32)"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "33461473-fa8f-4fb7-be4e-c5e710e652a9",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "type": "interactive",
+      "name": "Registration: Select State",
+      "interactiveId": "b4f7a75a-4b7a-4baf-aa51-2bc16404b47c",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 1500,
+        "y": -200
+      },
+      "keywords": [
+        "15 Aug 1994 (32)"
+      ],
+      "data": {
+        "interactiveType": "list",
+        "body": "🇮🇳 *Select Your State (Step 3/5)*\n\nPlease select your State of representation from the official list below, or type your state name in chat:",
+        "header": {
+          "type": "text",
+          "text": "Indian State / UT"
+        },
+        "footer": "Step 3 of 5",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "a55bf5db-950f-4a77-84f5-bc20587aca87",
+                "title": "Select State"
+              }
+            }
+          ],
+          "sections": [
+            {
+              "title": "South & West Regions",
+              "rows": [
+                {
+                  "id": "1cbc84ae-e5ef-49a6-bb49-0981b23d5005",
+                  "title": "Tamil Nadu",
+                  "description": "Tamil Nadu State Council"
+                },
+                {
+                  "id": "0ee57179-9178-4ec0-bc08-bc9a2c49cb01",
+                  "title": "Maharashtra",
+                  "description": "Maharashtra State Council"
+                },
+                {
+                  "id": "6953dfef-9686-4333-acce-ee16c988b206",
+                  "title": "Karnataka",
+                  "description": "Karnataka State Council"
+                },
+                {
+                  "id": "74f0dff1-4dc8-4eac-9a07-0ec5caca4e3f",
+                  "title": "Kerala",
+                  "description": "Kerala State Council"
+                },
+                {
+                  "id": "2c1a3807-c8c3-4b20-87f0-49dccf831eb8",
+                  "title": "Gujarat",
+                  "description": "Gujarat State Council"
+                }
+              ]
+            },
+            {
+              "title": "North & East Regions",
+              "rows": [
+                {
+                  "id": "8589d3c2-98b8-423d-8b1e-6e2f9b00589d",
+                  "title": "Delhi (NCR)",
+                  "description": "National Capital Region"
+                },
+                {
+                  "id": "cbbdc637-0e5d-4071-8c51-120e0ffec15e",
+                  "title": "Uttar Pradesh",
+                  "description": "UP State Council"
+                },
+                {
+                  "id": "fa1d3746-f571-4c82-9d04-8d54e9192819",
+                  "title": "Andhra Pradesh",
+                  "description": "AP State Council"
+                },
+                {
+                  "id": "aa448e84-9dd7-40bf-88ea-04506484f81a",
+                  "title": "Telangana",
+                  "description": "Telangana State Council"
+                },
+                {
+                  "id": "80666e00-b4d8-4d2d-9267-f6e6f40dc1c1",
+                  "title": "Other State / UT",
+                  "description": "Punjab, Haryana, WB, etc."
+                }
+              ]
+            }
+          ],
+          "button": "Select State"
+        }
+      }
+    },
+    {
+      "nodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "type": "interactive",
+      "name": "Registration: District, Assembly & Zone",
+      "interactiveId": "1cbc84ae-e5ef-49a6-bb49-0981b23d5005",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 1800,
+        "y": -200
+      },
+      "keywords": [
+        "Tamil Nadu"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🏛️ *District, Assembly & Zone (Step 4/5)*\n\nPlease enter your local representation details:\n\n• District (e.g. `Chennai`)\n• Assembly Constituency (e.g. `Velachery`)\n• Zone / Region (e.g. `Chennai Zone`)\n\n💬 *Type your District, Assembly & Zone in chat below* (e.g. `Chennai, Velachery, Chennai Zone`), or tap to use sample:",
+        "header": {
+          "type": "text",
+          "text": "District & Assembly"
+        },
+        "footer": "Step 4 of 5",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "fd02e74f-a3d4-4141-942c-7d2a72a2bbc9",
+                "title": "Chennai, Velachery"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "f9eb951b-f249-4ed1-b251-de50868e6226",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "bb278141-72db-4d4c-8588-508102c5ad68",
+      "type": "interactive",
+      "name": "Registration: Passport Photo (137x136)",
+      "interactiveId": "fd02e74f-a3d4-4141-942c-7d2a72a2bbc9",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 2100,
+        "y": -200
+      },
+      "keywords": [
+        "Chennai, Velachery"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📸 *Passport Size Photo Upload (Step 5/5)*\n\nLastly, please upload your official *137 × 136 Passport Size Photo* (or selfie with clear plain background).\n\nYour photo will be cropped and fitted directly onto your Front & Back ISYDCI Membership Card.\n\nSelect or upload photo below, then tap *Confirm & Issue Card*:",
+        "header": {
+          "type": "text",
+          "text": "Passport Photo (137x136)"
+        },
+        "footer": "Step 5 of 5",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "bb7072b5-ee17-4216-be7a-c0bb97dac839",
+                "title": "Confirm & Issue Card"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "1ad1b8b2-afa7-49f8-99c4-77bec807e92f",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "47a630ad-7aec-4a55-ba38-5357d48713f5",
+      "type": "interactive",
+      "name": "Registration Complete & Card Issued",
+      "interactiveId": "bb7072b5-ee17-4216-be7a-c0bb97dac839",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 2400,
+        "y": -200
+      },
+      "keywords": [
+        "Confirm & Issue Card"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🎉 *Congratulations! Your Official ISYDCI Membership Card is Issued!*\n\n✅ *Status: Verified Athlete Member*\n🏛️ Council Accreditation: Reg No: 49/1997\n🪪 Official ID Card Generated (Front & Back Combined)!\n\nYour official athlete membership card with 137×136 photo and verified QR code is ready. Tap below to download:",
+        "header": {
+          "type": "text",
+          "text": "ID Card Issued"
+        },
+        "footer": "ISYDCI National Council",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "a28d1fe3-5864-41e0-8b29-c9de2bd316e4",
+                "title": "Download Card"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "3598c3bb-2a62-4744-a516-f471e96757ab",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "fromNodeId": "root",
+      "toNodeId": "8d182d5e-15e7-472e-8b4b-0d7fff75930d",
+      "keywords": [
+        "Register Athlete"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "root",
+      "toNodeId": "f74bf881-a7f8-4b20-bf6b-ac1969ffdcef",
+      "keywords": [
+        "About ISYDCI"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "root",
+      "toNodeId": "e7b9c40d-18b9-4764-a658-3ddc00999b8a",
+      "keywords": [
+        "Official Website"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "root",
+      "toNodeId": "df3ca543-3c43-45c4-a082-a18ee7d57d8d",
+      "keywords": [
+        "Contact Support"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "f74bf881-a7f8-4b20-bf6b-ac1969ffdcef",
+      "toNodeId": "e7b9c40d-18b9-4764-a658-3ddc00999b8a",
+      "keywords": [
+        "Official Website"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "f74bf881-a7f8-4b20-bf6b-ac1969ffdcef",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "e7b9c40d-18b9-4764-a658-3ddc00999b8a",
+      "toNodeId": "df3ca543-3c43-45c4-a082-a18ee7d57d8d",
+      "keywords": [
+        "Contact Support"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "e7b9c40d-18b9-4764-a658-3ddc00999b8a",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "df3ca543-3c43-45c4-a082-a18ee7d57d8d",
+      "toNodeId": "f74bf881-a7f8-4b20-bf6b-ac1969ffdcef",
+      "keywords": [
+        "About ISYDCI"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "df3ca543-3c43-45c4-a082-a18ee7d57d8d",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "8d182d5e-15e7-472e-8b4b-0d7fff75930d",
+      "toNodeId": "46d7df9b-de50-47cc-b14d-25166a366c5d",
+      "keywords": [
+        "Use Sample Name"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "8d182d5e-15e7-472e-8b4b-0d7fff75930d",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "46d7df9b-de50-47cc-b14d-25166a366c5d",
+      "toNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "keywords": [
+        "15 Aug 1994 (32)"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "46d7df9b-de50-47cc-b14d-25166a366c5d",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Tamil Nadu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Maharashtra"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Karnataka"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Kerala"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Gujarat"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Delhi (NCR)"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Uttar Pradesh"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Andhra Pradesh"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Telangana"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "911754ef-5add-471f-9089-7ae5279a944d",
+      "toNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "keywords": [
+        "Other State / UT"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "toNodeId": "bb278141-72db-4d4c-8588-508102c5ad68",
+      "keywords": [
+        "Chennai, Velachery"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "bb278141-72db-4d4c-8588-508102c5ad68",
+      "toNodeId": "47a630ad-7aec-4a55-ba38-5357d48713f5",
+      "keywords": [
+        "Confirm & Issue Card"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "bb278141-72db-4d4c-8588-508102c5ad68",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "47a630ad-7aec-4a55-ba38-5357d48713f5",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    }
+  ],
+  "manualResolution": {
+    "enabled": false,
+    "title": "Manual Resolution"
+  }
+}

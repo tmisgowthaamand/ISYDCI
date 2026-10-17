@@ -1,0 +1,811 @@
+{
+  "chatbot": {
+    "name": "ISYDCI Official Bot v2 (EDMS Pattern)"
+  },
+  "nodes": [
+    {
+      "nodeId": "root",
+      "type": "interactive",
+      "name": "ISYDCI Official Welcome & Menu",
+      "interactiveId": null,
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 100,
+        "y": 100
+      },
+      "keywords": [
+        "hi",
+        "hello",
+        "hey",
+        "start",
+        "menu",
+        "isydci"
+      ],
+      "data": {
+        "interactiveType": "list",
+        "body": "🏆 *Welcome to Indian Sports Youth Development Council of India (ISYDCI)*!\n\nOfficial National Sports Council accreditation & athlete membership portal.\n\n📍 Ministry Reg No: 49/1997 | New Delhi HQ\n\nPlease tap below to choose an option:",
+        "header": {
+          "type": "text",
+          "text": "ISYDCI National Council"
+        },
+        "footer": "Official WhatsApp Athlete Portal",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "80840411-2ffd-4543-923c-9e2c84507bac",
+                "title": "Choose Option"
+              }
+            }
+          ],
+          "sections": [
+            {
+              "title": "Athlete Membership",
+              "rows": [
+                {
+                  "id": "fe485420-8476-4aa8-a35b-defd5a8447ef",
+                  "title": "Register Athlete",
+                  "description": "New membership registration & ID card issuance"
+                },
+                {
+                  "id": "12a016fd-6cf9-4760-9b31-7dcb35208f29",
+                  "title": "My Membership Card",
+                  "description": "View & download front & back official ID card"
+                }
+              ]
+            },
+            {
+              "title": "Council Information",
+              "rows": [
+                {
+                  "id": "2fa71a2c-0f3d-4d68-aa68-4dd9b3d45c16",
+                  "title": "About ISYDCI",
+                  "description": "Council accreditation & ministry recognition 49/1997"
+                },
+                {
+                  "id": "851250e2-6b79-4691-926d-d655cbab97f4",
+                  "title": "Official Website",
+                  "description": "Visit https://isydci.org for athlete portal"
+                },
+                {
+                  "id": "677aa7fe-d32b-41a8-b711-a7dab0a040cb",
+                  "title": "Contact Support",
+                  "description": "Helpline: +91-99946 27551 & office details"
+                }
+              ]
+            }
+          ],
+          "button": "Choose Option"
+        }
+      }
+    },
+    {
+      "nodeId": "921b2f02-b3a1-40ac-9886-7a61c7fa0f2b",
+      "type": "interactive",
+      "name": "About ISYDCI",
+      "interactiveId": "2fa71a2c-0f3d-4d68-aa68-4dd9b3d45c16",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 500,
+        "y": -300
+      },
+      "keywords": [
+        "About ISYDCI"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🏛️ *About ISYDCI National Sports Council*\n\nIndian Sports & Youth Development Campaign (ISYDCI) is established under Society Registration Act (Reg No: 49/1997).\n\n🌟 *Key Objectives:*\n• Official athlete accreditation & verified digital membership card.\n• Organizing national trials, state selection camps, and national championships.\n• Official event venue: Talkatora Indoor Stadium, New Delhi.\n\n📍 Headquarters: VB Bhavan, Room No. 308, Rafi Marg, Sansad Marg, New Delhi – 110001\n👤 Founder & National President: Visanath Shetty",
+        "header": {
+          "type": "text",
+          "text": "Council Accreditation"
+        },
+        "footer": "Ministry Reg: 49/1997",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "971c29c1-f1ec-49c0-a691-91a485164486",
+                "title": "Official Website"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "53ee383f-f4b7-4f05-9673-575fe93533d5",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "5f2bc151-f95d-4610-ac83-d6baafb755e9",
+      "type": "interactive",
+      "name": "Official Website",
+      "interactiveId": "851250e2-6b79-4691-926d-d655cbab97f4",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 500,
+        "y": -100
+      },
+      "keywords": [
+        "Official Website"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🌐 *Official ISYDCI Web Portal*\n\nVisit our official website to verify athlete credentials, view national championship fixtures, and download accreditation certificates:\n\n🔗 *Website:* https://isydci.org\n\n(Accredited under Society Reg No: 49/1997 | New Delhi HQ)",
+        "header": {
+          "type": "text",
+          "text": "Official Portal"
+        },
+        "footer": "https://isydci.org",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "7f7d12af-a9cd-4f65-b4ea-e10befc31021",
+                "title": "Contact Support"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "c34b77fd-84df-4f54-a038-4e8d3cb33c37",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "e6110c5b-04fd-4b12-973b-e64b78c26bae",
+      "type": "interactive",
+      "name": "Contact Support",
+      "interactiveId": "677aa7fe-d32b-41a8-b711-a7dab0a040cb",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 500,
+        "y": 100
+      },
+      "keywords": [
+        "Contact Support"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📞 *ISYDCI Council Secretariat & Help Desk*\n\n📱 *Helpline / WhatsApp:* +91-99946 27551\n📧 *Email:* support@isydci.org\n🌐 *Website:* https://isydci.org\n\n📍 *National Headquarters:*\nVB Bhavan, Room No. 308, Rafi Marg, Sansad Marg, New Delhi – 110001\n\nOffice Hours: Mon – Sat, 9:30 AM to 6:00 PM IST",
+        "header": {
+          "type": "text",
+          "text": "Helpline & Office"
+        },
+        "footer": "+91-99946 27551",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "79838407-e03b-4dd3-adb6-18931228e67b",
+                "title": "About ISYDCI"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "050d8787-c295-4067-98a7-edb9a8bd4cfc",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "2e0657a0-fe86-4b57-b091-f54c54dde48e",
+      "type": "interactive",
+      "name": "Registration: Location Details",
+      "interactiveId": "fe485420-8476-4aa8-a35b-defd5a8447ef",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 900,
+        "y": -300
+      },
+      "keywords": [
+        "Register Athlete"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📝 *Athlete Registration (Step 1/5)*\n\nPlease enter your representation details:\n\n• Full Name: `Amit Kumar`\n• Mobile: `+91 98765 43210` (WhatsApp verified ✓)\n• State / UT: `Tamil Nadu`\n• District: `Chennai`\n• Assembly: `Velachery`\n• Zone / Ward / Area: `Ward 25`\n\n💬 *Type or tap Next to continue:*",
+        "header": {
+          "type": "text",
+          "text": "Athlete Registration"
+        },
+        "footer": "Step 1 of 5: Location Details",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "e9f1237f-6010-4514-b7b9-53623ef7f730",
+                "title": "Next: Date of Birth"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "87a412c8-251b-4d37-b014-ecf4ad6c88a3",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "9f30adab-3458-4798-9c10-43a1c58fabf6",
+      "type": "interactive",
+      "name": "Registration: Date of Birth & Age",
+      "interactiveId": "e9f1237f-6010-4514-b7b9-53623ef7f730",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 1200,
+        "y": -300
+      },
+      "keywords": [
+        "Next: Date of Birth"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🎂 *Date of Birth & Age (Step 2/5)*\n\nPlease provide your date of birth:\n\n📅 Date of Birth: `15 Aug 1999`\n⌛ Age: `27 Years` (Auto-calculated)\n\nℹ️ Age will be calculated automatically based on your date of birth.\n\n💬 *Type your DOB (e.g. 15 Aug 1999), or tap Next:*",
+        "header": {
+          "type": "text",
+          "text": "Date of Birth & Age"
+        },
+        "footer": "Step 2 of 5: DOB & Age",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "b4b85a3e-b5e6-4c44-a1da-96804d1b7fc1",
+                "title": "Next: Address Info"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "a54ae3a5-2326-4c7a-8fcd-48723fc20027",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "ef16a706-9a9d-4d65-99fa-ff678c6b4e74",
+      "type": "interactive",
+      "name": "Registration: Additional Information",
+      "interactiveId": "b4b85a3e-b5e6-4c44-a1da-96804d1b7fc1",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 1500,
+        "y": -300
+      },
+      "keywords": [
+        "Next: Address Info"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🩸 *Additional Information (Step 3/5)*\n\nPlease complete the remaining details:\n\n• Blood Group: `O+`\n• Full Address:\n`No. 12, 3rd Street, Velachery, Chennai - 600042, Tamil Nadu, India`\n\n💬 *Type your address in chat, or tap Next:*",
+        "header": {
+          "type": "text",
+          "text": "Additional Information"
+        },
+        "footer": "Step 3 of 5: Blood & Address",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "f2a32317-f989-42b2-9745-eaf960394e63",
+                "title": "Next: Upload Photo"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "67c9c612-a94f-4e7f-93b5-97c101caabf9",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "fc23762b-25ce-4876-8cb3-005f25c1251b",
+      "type": "interactive",
+      "name": "Registration: Upload Photo",
+      "interactiveId": "f2a32317-f989-42b2-9745-eaf960394e63",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 1800,
+        "y": -300
+      },
+      "keywords": [
+        "Next: Upload Photo"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📸 *Upload Your Photo (Step 4/5)*\n\nPlease upload a clear passport size photo for your official ISYDCI athlete ID card.\n\nRecommended: 300 DPI, plain background.\nYour photo will be cropped to 137×136 ratio.\n\nTap below to review your complete details:",
+        "header": {
+          "type": "text",
+          "text": "Upload Your Photo"
+        },
+        "footer": "Step 4 of 5: Passport Photo",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "62807e83-685c-4270-a1b1-24cbc2b01592",
+                "title": "Next: Review Details"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "94bb641f-7e49-48ed-80cf-79da85008738",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "b2629cbc-1a59-4d3a-811f-ea9c7335d089",
+      "type": "interactive",
+      "name": "Registration: Confirm Your Details",
+      "interactiveId": "62807e83-685c-4270-a1b1-24cbc2b01592",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 2100,
+        "y": -300
+      },
+      "keywords": [
+        "Next: Review Details"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "📋 *Confirm Your Details (Step 5/5)*\n\nPlease review your details before submitting:\n\n👤 Full Name: `Amit Kumar`\n📱 Mobile: `+91 98765 43210`\n📍 State: `Tamil Nadu` | District: `Chennai`\n🏛️ Assembly: `Velachery` | Zone: `Ward 25`\n🎂 DOB: `15 Aug 1999` (Age 27)\n🩸 Blood Group: `O+`\n🏠 Address: `No. 12, 3rd Street, Velachery, Chennai - 600042`\n📷 Passport Photo: `Fitted 137×136 ✓`\n\n✅ *Please confirm that all the details are correct.*",
+        "header": {
+          "type": "text",
+          "text": "Confirm Your Details"
+        },
+        "footer": "Review Before Submission",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "78670360-de87-4be8-8c69-3142b3726e08",
+                "title": "Submit Registration"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "64689f60-2027-4952-80e3-317814a25cc8",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "c91bbba4-ad22-44ca-a173-380cb6217c44",
+      "type": "interactive",
+      "name": "Registration Submitted",
+      "interactiveId": "78670360-de87-4be8-8c69-3142b3726e08",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 2400,
+        "y": -300
+      },
+      "keywords": [
+        "Submit Registration"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "✅ *Registration Submitted!*\n\nThank you for registering with ISYDCI. Your details have been successfully submitted.\n\n🪪 *Membership ID:* `ISYDCI-684DDC04`\n\nYour official membership card is being generated and will be shown below:\n\n⏳ Generating your ISYDCI Member Card... Please wait a moment.",
+        "header": {
+          "type": "text",
+          "text": "Registration Submitted"
+        },
+        "footer": "ISYDCI National Sports Council",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "8c245b83-80cb-4ed6-9cab-ff3904417abf",
+                "title": "View Membership Card"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "24dec8b1-5312-4280-9ac2-816ba98d3905",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    },
+    {
+      "nodeId": "2e4194f6-cbc6-4975-a7df-5daba8a47a24",
+      "type": "interactive",
+      "name": "Your ISYDCI Member Card",
+      "interactiveId": "8c245b83-80cb-4ed6-9cab-ff3904417abf",
+      "assignedAgent": null,
+      "assignedAgents": [],
+      "enabledNotify": false,
+      "notifyConfig": {},
+      "funnelStageConfig": {
+        "enabled": false
+      },
+      "variableConfig": {},
+      "canvasPosition": {
+        "x": 2700,
+        "y": -300
+      },
+      "keywords": [
+        "View Membership Card"
+      ],
+      "data": {
+        "interactiveType": "button",
+        "body": "🎉 *Your ISYDCI Membership Card is Ready!*\n\nHere is your official membership card (Front & Back Side):\n\n• Verified Athlete Member\n• Council Reg No: 49/1997\n• High-Resolution Digital Card Generated\n\nTap below to download or share your card:",
+        "header": {
+          "type": "text",
+          "text": "Your ISYDCI Member Card"
+        },
+        "footer": "Official Council Card",
+        "action": {
+          "buttons": [
+            {
+              "type": "reply",
+              "reply": {
+                "id": "c722fd5c-564d-4c41-b0b9-b83105d60bc6",
+                "title": "Download Card"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "07cb8907-a0d6-481e-bd07-18d778fba6a9",
+                "title": "Share Card"
+              }
+            },
+            {
+              "type": "reply",
+              "reply": {
+                "id": "81b127fa-ba17-4561-8387-ea8a5737e15b",
+                "title": "Main Menu"
+              }
+            }
+          ],
+          "sections": [],
+          "button": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "fromNodeId": "root",
+      "toNodeId": "2e0657a0-fe86-4b57-b091-f54c54dde48e",
+      "keywords": [
+        "Register Athlete"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "root",
+      "toNodeId": "921b2f02-b3a1-40ac-9886-7a61c7fa0f2b",
+      "keywords": [
+        "About ISYDCI"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "root",
+      "toNodeId": "5f2bc151-f95d-4610-ac83-d6baafb755e9",
+      "keywords": [
+        "Official Website"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "root",
+      "toNodeId": "e6110c5b-04fd-4b12-973b-e64b78c26bae",
+      "keywords": [
+        "Contact Support"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "921b2f02-b3a1-40ac-9886-7a61c7fa0f2b",
+      "toNodeId": "5f2bc151-f95d-4610-ac83-d6baafb755e9",
+      "keywords": [
+        "Official Website"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "921b2f02-b3a1-40ac-9886-7a61c7fa0f2b",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "5f2bc151-f95d-4610-ac83-d6baafb755e9",
+      "toNodeId": "e6110c5b-04fd-4b12-973b-e64b78c26bae",
+      "keywords": [
+        "Contact Support"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "5f2bc151-f95d-4610-ac83-d6baafb755e9",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "e6110c5b-04fd-4b12-973b-e64b78c26bae",
+      "toNodeId": "921b2f02-b3a1-40ac-9886-7a61c7fa0f2b",
+      "keywords": [
+        "About ISYDCI"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "e6110c5b-04fd-4b12-973b-e64b78c26bae",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "2e0657a0-fe86-4b57-b091-f54c54dde48e",
+      "toNodeId": "9f30adab-3458-4798-9c10-43a1c58fabf6",
+      "keywords": [
+        "Next: Date of Birth"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "2e0657a0-fe86-4b57-b091-f54c54dde48e",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "9f30adab-3458-4798-9c10-43a1c58fabf6",
+      "toNodeId": "ef16a706-9a9d-4d65-99fa-ff678c6b4e74",
+      "keywords": [
+        "Next: Address Info"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "9f30adab-3458-4798-9c10-43a1c58fabf6",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "ef16a706-9a9d-4d65-99fa-ff678c6b4e74",
+      "toNodeId": "fc23762b-25ce-4876-8cb3-005f25c1251b",
+      "keywords": [
+        "Next: Upload Photo"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "ef16a706-9a9d-4d65-99fa-ff678c6b4e74",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "fc23762b-25ce-4876-8cb3-005f25c1251b",
+      "toNodeId": "b2629cbc-1a59-4d3a-811f-ea9c7335d089",
+      "keywords": [
+        "Next: Review Details"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "fc23762b-25ce-4876-8cb3-005f25c1251b",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "b2629cbc-1a59-4d3a-811f-ea9c7335d089",
+      "toNodeId": "c91bbba4-ad22-44ca-a173-380cb6217c44",
+      "keywords": [
+        "Submit Registration"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "b2629cbc-1a59-4d3a-811f-ea9c7335d089",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "c91bbba4-ad22-44ca-a173-380cb6217c44",
+      "toNodeId": "2e4194f6-cbc6-4975-a7df-5daba8a47a24",
+      "keywords": [
+        "View Membership Card"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "c91bbba4-ad22-44ca-a173-380cb6217c44",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    },
+    {
+      "fromNodeId": "2e4194f6-cbc6-4975-a7df-5daba8a47a24",
+      "toNodeId": "root",
+      "keywords": [
+        "Main Menu"
+      ],
+      "intentName": "user_reply",
+      "delay": 0
+    }
+  ],
+  "manualResolution": {
+    "enabled": false,
+    "title": "Manual Resolution"
+  }
+}

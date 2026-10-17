@@ -363,9 +363,9 @@ export default function MembershipCardPage() {
   return (
     <>
       <PageHeader
-        kicker="Official Membership"
-        title="Membership ID Card"
-        subtitle="Generate and download your official member identity card as high-resolution PNG."
+        kicker="Athlete Registration & Accreditation"
+        title="Athlete Registration & Membership Card"
+        subtitle="Register your athlete profile and generate your verified official digital membership ID card."
       />
 
       {/* Main Section */}
@@ -376,10 +376,10 @@ export default function MembershipCardPage() {
           <div className="mb-8 bg-white/80 backdrop-blur-xl rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 border-l-[5px] border-blue-600 shadow-[0_10px_30px_rgba(11,30,63,.06)] border border-slate-200/80">
             <div>
               <span className="text-blue-600 font-bold tracking-[2.5px] text-xs uppercase">
-                Digital Membership
+                Athlete Registration &amp; Accreditation
               </span>
               <h2 className="text-[#0b1e3f] text-lg sm:text-xl font-extrabold tracking-tight mt-0.5 font-['Montserrat']">
-                Live ID Card Designer &amp; Generator
+                Athlete Registration &amp; Live ID Card Generator
               </h2>
             </div>
 

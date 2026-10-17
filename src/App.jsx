@@ -15,6 +15,8 @@ import AdminLogin from './pages/AdminLogin.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
 import AdminMembers from './pages/AdminMembers.jsx'
 import AdminManagement from './pages/AdminManagement.jsx'
+import FlowSimulator from './pages/FlowSimulator.jsx'
+import BotMessages from './pages/BotMessages.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
@@ -31,6 +33,7 @@ export default function App() {
           <Route path="/athletes" element={<Athletes />} />
           <Route path="/membership-card" element={<MembershipCardPage />} />
           <Route path="/id-card" element={<MembershipCardPage />} />
+          <Route path="/register" element={<MembershipCardPage />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -41,12 +44,17 @@ export default function App() {
         {/* Dedicated Admin Login Route */}
         <Route path="/admin/login" element={<AdminLogin />} />
 
+        {/* Shortcut alias for /flow-simulator matching reference screenshot */}
+        <Route path="/flow-simulator" element={<Navigate to="/admin/flow-simulator" replace />} />
+
         {/* Dedicated Admin Portal Routes (with sidebar layout matching screenshot) */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="members" element={<AdminMembers />} />
           <Route path="management" element={<AdminManagement />} />
+          <Route path="bot-messages" element={<BotMessages />} />
+          <Route path="flow-simulator" element={<FlowSimulator />} />
           <Route path="registrations" element={<AdminMembers />} />
         </Route>
 

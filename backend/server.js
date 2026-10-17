@@ -29,8 +29,13 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Live Request Logger Middleware (Visible in Render Logs console and /api/live-logs)
+// Live Request Logger Middleware (Visible in terminal and /api/live-logs)
 app.use((req, res, next) => {
+  // Suppress health & polling noise from terminal
+  if (req.originalUrl === '/api/health' || req.originalUrl === '/api/live-logs' || req.originalUrl === '/api/flow-log') {
+    return next()
+  }
+
   const start = Date.now()
   const origin = req.headers.origin || req.headers.referer || 'direct'
   const isVercel = origin.includes('isydci.vercel.app')
@@ -60,6 +65,36 @@ app.use((req, res, next) => {
   })
 
   next()
+})
+
+// Endpoint to display Flow Simulator clicks and errors in the terminal
+app.post('/api/flow-log', (req, res) => {
+  const { status, option, fromNode, toNode, toNodeName, error, details } = req.body || {}
+  const time = new Date().toLocaleTimeString()
+
+  if (status === 'error') {
+    console.log(`\n======================================================`)
+    console.log(`❌ [FLOW ERROR ${time}]`)
+    console.log(`   👉 Option Clicked: "${option}"`)
+    console.log(`   📍 Current Node:   [${fromNode || 'unknown'}]`)
+    console.log(`   ⚠️  Issue:          ${error || 'No matching edge found in flow JSON'}`)
+    console.log(`======================================================\n`)
+  } else {
+    console.log(`\n======================================================`)
+    console.log(`📱 [FLOW CLICK ${time}]`)
+    console.log(`   👉 Option Clicked: "${option}"`)
+    console.log(`   📍 From Node:      [${fromNode || 'root'}]`)
+    if (toNode) {
+      console.log(`   ➡️  Next Node:      [${toNode}] ${toNodeName || ''}`)
+    }
+    if (details) {
+      console.log(`   ⚡ Backend Action: ${details}`)
+    }
+    console.log(`   ✅ Result:         SUCCESS`)
+    console.log(`======================================================\n`)
+  }
+
+  res.json({ success: true })
 })
 
 // Root Endpoint (Displays live connection info and status)
