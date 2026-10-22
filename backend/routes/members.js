@@ -1,6 +1,7 @@
 import { Router } from 'express'
-import { getAllMembers, getMemberById, saveMember, deleteMember, getStats } from '../db/db.js'
+import { getAllMembers, getMemberById, saveMember, deleteMember, getStats, findMemberByPhone } from '../db/db.js'
 import { uploadToCloudinary } from '../config/cloudinary.js'
+import { generateAndUploadCard } from '../services/cardRenderer.js'
 
 const router = Router()
 
@@ -34,12 +35,7 @@ router.get('/stats', (req, res) => {
 // GET /api/members/phone/:phone — Lookup member by phone number
 router.get('/phone/:phone', (req, res) => {
   try {
-    const rawPhone = (req.params.phone || '').replace(/\D/g, '')
-    const members = getAllMembers()
-    const member = members.find(m => {
-      const cleanContact = (m.contact || '').replace(/\D/g, '')
-      return cleanContact && (cleanContact.endsWith(rawPhone) || rawPhone.endsWith(cleanContact))
-    })
+    const member = findMemberByPhone(req.params.phone)
     if (!member) {
       return res.status(404).json({ success: false, message: 'No registered member found for this phone number' })
     }
@@ -113,12 +109,18 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // One phone number = one card: reuse the existing Member ID when this number is already registered
+    const existingByPhone = contact ? findMemberByPhone(contact) : null
+    if (existingByPhone) {
+      console.log(`[Duplicate Prevented] ${contact} already registered as ${existingByPhone.memberId} (${existingByPhone.name}) — updating that record`)
+    }
+
     // Auto-generate Member ID if missing (Format matching Screenshot 2: ISYDCI-684DDC04)
     const hexCode = Math.random().toString(16).substring(2, 10).toUpperCase()
-    const generatedId = memberId || `ISYDCI-${hexCode}`
+    const generatedId = memberId || existingByPhone?.memberId || `ISYDCI-${hexCode}`
 
     // Save record to persistent database (only full card and profile photo stored)
-    const saved = saveMember({
+    let saved = saveMember({
       name: name.toUpperCase(),
       memberId: generatedId,
       photo: photoUrl,
@@ -141,9 +143,18 @@ router.post('/', async (req, res) => {
 
     console.log(`[Member Saved Successfully] ID: ${saved.memberId}, Cloudinary: ${cloudinaryUserFolder}`)
 
-    res.status(201).json({
+    // 3. No card image from the browser (e.g. flow simulator / admin) -> render it on the server
+    if (!cardFullUrl) {
+      const renderedUrl = await generateAndUploadCard(saved)
+      if (renderedUrl) saved = saveMember({ ...saved, cardFullUrl: renderedUrl })
+    }
+
+    res.status(existingByPhone ? 200 : 201).json({
       success: true,
-      message: 'Member registered and assets uploaded to Cloudinary successfully',
+      duplicate: Boolean(existingByPhone),
+      message: existingByPhone
+        ? `This mobile number is already registered as ${existingByPhone.memberId}. The existing record was updated — no duplicate card was created.`
+        : 'Member registered and assets uploaded to Cloudinary successfully',
       member: saved,
     })
   } catch (error) {
@@ -165,6 +176,25 @@ router.patch('/:id/status', (req, res) => {
     res.json({ success: true, member: updated })
   } catch (error) {
     console.error('[Error updating member status]:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// POST /api/members/:id/generate-card — (Re)render the Front & Back card image on the server
+router.post('/:id/generate-card', async (req, res) => {
+  try {
+    const member = getMemberById(req.params.id)
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found' })
+    }
+    const url = await generateAndUploadCard(member)
+    if (!url) {
+      return res.status(500).json({ success: false, message: 'Card rendering failed' })
+    }
+    const updated = saveMember({ ...member, cardFullUrl: url })
+    res.json({ success: true, member: updated })
+  } catch (error) {
+    console.error('[Error generating card]:', error)
     res.status(500).json({ success: false, message: error.message })
   }
 })

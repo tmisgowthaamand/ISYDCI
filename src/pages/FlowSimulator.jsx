@@ -52,10 +52,59 @@ export default function FlowSimulator() {
     contact: '+91 91234 56789',
     address: 'No. 12, 3rd Street, Velachery, Chennai - 600042, Tamil Nadu, India',
     sport: 'ATHLETICS',
-    photo: '/athletes/1.png'
+    photo: '' // mandatory in the real flow: nothing is submitted without a passport photo
   })
   const [isFlowModalOpen, setIsFlowModalOpen] = useState(false)
-  const [flowScreenStep, setFlowScreenStep] = useState(1) // 1: Location, 2: DOB, 3: Address, 4: Photo, 5: Confirm
+  // Mirrors the real Meta Flow screens: 1 REG_LOCATION, 2 REG_DOB, 3 REG_DETAILS (blood/address/photo), 4 REG_CONFIRM
+  const [flowScreenStep, setFlowScreenStep] = useState(1)
+  const FLOW_STEPS = [
+    { id: 'REG_LOCATION', title: 'Athlete Registration', subtitle: 'Step 1 of 4 · Personal & location details' },
+    { id: 'REG_DOB', title: 'Date of Birth & Age', subtitle: 'Step 2 of 4 · Please provide your date of birth' },
+    { id: 'REG_DETAILS', title: 'Additional Information', subtitle: 'Step 3 of 4 · Blood group, address & passport photo' },
+    { id: 'REG_CONFIRM', title: 'Confirm Your Details', subtitle: 'Step 4 of 4 · Review before submitting' },
+  ]
+  const [flowStepError, setFlowStepError] = useState('')
+
+  // Same validation rules as backend/routes/flowEndpoint.js, one screen at a time
+  const validateFlowStep = (step) => {
+    const d = registrationDraft
+    if (step === 1) {
+      if (!(d.name || '').trim() || d.name.trim().length < 3) return 'Please enter your full name (minimum 3 letters).'
+      if (!d.state) return 'Please select your State / Union Territory.'
+      if (!(d.district || '').trim() || !(d.assembly || '').trim() || !(d.zone || '').trim()) return 'District, Assembly and Zone are required.'
+    }
+    if (step === 2) {
+      if (!(d.dob || '').trim()) return 'Please enter your date of birth.'
+      const yr = (d.dob.match(/\b(19\d\d|20\d\d)\b/) || [])[1]
+      if (!yr) return 'Date of birth must include the year, e.g. 15 Aug 1999.'
+    }
+    if (step === 3) {
+      if (!d.bloodGroup) return 'Please select your blood group.'
+      if ((d.address || '').trim().length < 8) return 'Please enter your full address.'
+      if (!d.photo) return 'A passport-size photo is mandatory for the ID card. Please upload your photo.'
+    }
+    return ''
+  }
+
+  const goToFlowStep = (nextStep) => {
+    if (nextStep > flowScreenStep) {
+      const err = validateFlowStep(flowScreenStep)
+      if (err) {
+        setFlowStepError(err)
+        logToTerminal({ status: 'error', option: 'Continue', fromNode: FLOW_STEPS[flowScreenStep - 1].id, error: err })
+        return
+      }
+    }
+    setFlowStepError('')
+    logToTerminal({
+      status: 'success',
+      option: nextStep > flowScreenStep ? 'Continue' : 'Back',
+      fromNode: FLOW_STEPS[flowScreenStep - 1].id,
+      toNode: FLOW_STEPS[nextStep - 1].id,
+      toNodeName: FLOW_STEPS[nextStep - 1].subtitle
+    })
+    setFlowScreenStep(nextStep)
+  }
   const [cropModalOpen, setCropModalOpen] = useState(false)
   const [imageToCrop, setImageToCrop] = useState(null)
   const [customAthleteMode, setCustomAthleteMode] = useState(false)
@@ -357,6 +406,18 @@ export default function FlowSimulator() {
           const params = new URLSearchParams(window.location.search)
           const qId = params.get('id')
           const qPhone = params.get('phone')
+          const qAction = params.get('action')
+
+          if (qAction === 'register' || qAction === 'flow') {
+            if (qPhone) {
+              const formattedPhone = qPhone.startsWith('+') ? qPhone : `+${qPhone}`
+              setRegistrationDraft(prev => ({
+                ...prev,
+                contact: formattedPhone
+              }))
+            }
+            setIsFlowModalOpen(true)
+          }
 
           if (qId || qPhone) {
             const match = d.members.find(m => 
@@ -457,10 +518,11 @@ export default function FlowSimulator() {
     setSelectedUser(userObj)
     setIsFlowModalOpen(false)
     setFlowScreenStep(1)
+    setFlowStepError('')
     if (userObj.isUnregistered) {
       setRegistrationDraft({
         name: '',
-        contact: '+91 91234 56789',
+        contact: userObj.phone ? `+${userObj.phone.replace(/\D/g, '').replace(/^(\d{2})(\d{5})(\d{5})$/, '$1 $2 $3')}` : '+91 91234 56789',
         state: 'Tamil Nadu',
         district: 'Chennai',
         assembly: 'Velachery',
@@ -470,7 +532,7 @@ export default function FlowSimulator() {
         bloodGroup: 'O+',
         address: 'No. 12, 3rd Street, Velachery, Chennai - 600042, Tamil Nadu, India',
         sport: 'ATHLETICS',
-        photo: '/athletes/1.png'
+        photo: '' // mandatory: must be uploaded (or a sample picked) before submitting, same as the real flow
       })
     } else {
       setRegistrationDraft({
@@ -491,79 +553,98 @@ export default function FlowSimulator() {
     handleRestartChat(userObj)
   }
 
-  // Handle WhatsApp Flow Screen Submission (Screen 6 -> Screen 7 -> Screen 8)
-  const handleFlowSubmit = () => {
-    setIsFlowModalOpen(false)
-    const timeStr = '12:30 pm'
-    const newMemberId = 'ISYDCI-684DDC04'
-    const newMember = {
-      name: (registrationDraft.name || 'Amit Kumar').toUpperCase(),
-      contact: registrationDraft.contact || '+91 98765 43210',
-      memberId: newMemberId,
-      sport: registrationDraft.sport || 'ATHLETICS',
-      state: registrationDraft.state || 'Tamil Nadu',
-      district: registrationDraft.district || 'Chennai',
-      assembly: registrationDraft.assembly || 'Velachery',
-      zone: registrationDraft.zone || 'Ward 25',
-      dob: registrationDraft.dob || '15 Aug 1999',
-      age: registrationDraft.age || '27',
-      bloodGroup: registrationDraft.bloodGroup || 'O+',
-      address: registrationDraft.address || 'No. 12, 3rd Street, Velachery, Chennai - 600042, Tamil Nadu, India',
-      photo: registrationDraft.photo || '/athletes/1.png',
-      photoUrl: registrationDraft.photo || '/athletes/1.png',
-      status: 'Verified',
-      joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  // REG_CONFIRM "Submit Registration": save to backend (real Member ID + server-rendered card), then
+  // show "Registration successful" + the card in chat — exactly what the WhatsApp webhook sends.
+  const handleFlowSubmit = async () => {
+    for (const step of [1, 2, 3]) {
+      const err = validateFlowStep(step)
+      if (err) {
+        setFlowStepError(err)
+        setFlowScreenStep(step)
+        logToTerminal({ status: 'error', option: 'Submit Registration', fromNode: 'REG_CONFIRM', error: err })
+        return
+      }
     }
 
-    // Save to backend database
-    fetch(`${apiBaseUrl}/api/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Client': 'flow-simulator' },
-      body: JSON.stringify(newMember)
-    })
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && d.member) {
-          setSelectedUser({ ...d.member, isUnregistered: false })
-          setDbMembers(prev => [d.member, ...prev.filter(m => m.memberId !== d.member.memberId)])
-        }
-      })
-      .catch(() => {})
+    setIsFlowModalOpen(false)
+    setFlowStepError('')
+    const timeStr = '12:30 pm'
+    const pendingId = `reg-submit-${Date.now()}`
+    const draft = {
+      name: registrationDraft.name.trim().toUpperCase(),
+      contact: registrationDraft.contact || selectedUser.phone || '',
+      sport: registrationDraft.sport || 'ATHLETICS',
+      state: registrationDraft.state,
+      district: registrationDraft.district,
+      assembly: registrationDraft.assembly,
+      zone: registrationDraft.zone,
+      dob: registrationDraft.dob,
+      age: registrationDraft.age,
+      bloodGroup: registrationDraft.bloodGroup,
+      address: registrationDraft.address,
+      photo: registrationDraft.photo,
+      photoUrl: registrationDraft.photo,
+      status: 'Verified'
+    }
 
-    // Screen 7: Registration Submitted! (Show success message)
     setChatMessages(prev => [
       ...prev,
-      {
-        id: `reg-submit-${Date.now()}`,
-        type: 'reg_submitted',
-        memberId: newMemberId,
-        time: timeStr
-      }
+      { id: pendingId, type: 'reg_submitted', memberId: 'Generating…', pending: true, time: timeStr }
     ])
-
     logToTerminal({
       status: 'success',
       option: 'Submit Registration',
-      fromNode: 'flow_screen_6',
-      details: `Submitted registration for ${newMember.name} (${newMember.memberId})`
+      fromNode: 'REG_CONFIRM',
+      toNode: 'REG_SUCCESS',
+      details: `Submitting registration for ${draft.name} (${draft.contact}) to POST /api/members`
     })
 
-    // Screen 8: Your ISYDCI Member Card (Show immediately after submission)
-    setTimeout(() => {
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: `card-ready-${Date.now()}`,
-          type: 'card_ready',
-          member: newMember,
-          time: timeStr
-        }
-      ])
-    }, 600)
+    let member = null
+    try {
+      const r = await fetch(`${apiBaseUrl}/api/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Client': 'flow-simulator' },
+        body: JSON.stringify(draft)
+      })
+      const d = await r.json()
+      if (d.success && d.member) member = d.member
+    } catch (_) {}
+
+    if (!member) {
+      // Backend offline: keep the simulation going with a locally generated ID
+      member = { ...draft, memberId: `ISYDCI-${Math.random().toString(16).substring(2, 10).toUpperCase()}`, joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
+    }
+
+    skipRestartRef.current = true
+    setSelectedUser({ ...member, phone: (member.contact || '').replace(/\D/g, ''), isUnregistered: false })
+    setDbMembers(prev => [member, ...prev.filter(m => m.memberId !== member.memberId)])
+    setChatMessages(prev => [
+      ...prev.map(m => (m.id === pendingId ? { ...m, memberId: member.memberId, pending: false } : m)),
+      {
+        id: `backend-${Date.now()}`,
+        type: 'backend',
+        text: `🎉 *Hi ${member.name}, your registration is successful!*\n\n🆔 Member ID: ${member.memberId}\n📍 State / District: ${member.state} / ${member.district}\n🩸 Blood Group: ${member.bloodGroup || '-'}\n✅ Status: Verified Athlete (Reg No: 49/1997)\n\nYour official Front & Back membership card is ready 👇`,
+        time: timeStr
+      },
+      { id: `card-ready-${Date.now()}`, type: 'card_ready', member, time: timeStr }
+    ])
+    logToTerminal({
+      status: 'success',
+      option: 'Done',
+      fromNode: 'REG_SUCCESS',
+      details: `Registered ${member.name} as ${member.memberId}${member.cardFullUrl ? ` — card image: ${member.cardFullUrl}` : ''}`
+    })
   }
 
-  // Initialize on mount and when selectedUser changes
+  // Initialize on mount and when selectedUser changes.
+  // skipRestartRef lets a just-completed registration promote the user to "registered"
+  // without wiping the success + card messages from the chat.
+  const skipRestartRef = useRef(false)
   useEffect(() => {
+    if (skipRestartRef.current) {
+      skipRestartRef.current = false
+      return
+    }
     handleRestartChat()
   }, [flow, selectedUser.phone, selectedUser.isUnregistered])
 
@@ -745,13 +826,31 @@ export default function FlowSimulator() {
 
     // ── 0. WHATSAPP FLOW SCREEN: REGISTER ATHLETE ────────────────────────────
     if (optionTitle === 'Register Athlete' || optionTitle === 'Register' || optionTitle === 'New Registration') {
+      // Registered number -> never re-register: "already registered" + card (same as the webhook)
+      const regPhone = (selectedUser?.phone || selectedUser?.contact || '').replace(/\D/g, '').slice(-10)
+      const alreadyMember = !selectedUser?.isUnregistered && (dbMembers.find(m => (m.contact || '').replace(/\D/g, '').slice(-10) === regPhone) || (selectedUser?.memberId ? selectedUser : null))
+      if (alreadyMember) {
+        newMsgs.push({
+          id: `backend-${Date.now()}`,
+          type: 'backend',
+          text: `✅ *You are already registered, ${alreadyMember.name}!*\n\nYour mobile number is linked to Member ID ${alreadyMember.memberId}. There is no need to register again.\n\nHere is your membership card 👇`,
+          time: timeStr
+        })
+        newMsgs.push({ id: `card-${Date.now()}`, type: 'card', member: alreadyMember, time: timeStr })
+        setChatMessages(newMsgs)
+        logToTerminal({ status: 'success', option: optionTitle, fromNode: currentNodeId, details: `Already registered (${alreadyMember.memberId}) — showed existing card instead of the flow` })
+        return
+      }
       setIsFlowModalOpen(true)
       setFlowScreenStep(1)
+      setFlowStepError('')
+      setChatMessages(newMsgs)
       logToTerminal({
         status: 'success',
         option: optionTitle,
         fromNode: currentNodeId,
-        details: 'Opened WhatsApp Flow: Athlete Registration (Screen 2: Location Details)'
+        toNode: 'REG_LOCATION',
+        details: 'Opened WhatsApp Flow (INIT -> REG_LOCATION): Step 1 of 4 — Personal & location details'
       })
       return
     }
@@ -2364,13 +2463,7 @@ export default function FlowSimulator() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          if (flowScreenStep > 1) {
-                            setFlowScreenStep(prev => prev - 1)
-                          } else {
-                            setIsFlowModalOpen(false)
-                          }
-                        }}
+                        onClick={() => setIsFlowModalOpen(false)}
                         className="text-white hover:opacity-80 p-0.5 cursor-pointer"
                         title="Back"
                       >
@@ -2404,15 +2497,28 @@ export default function FlowSimulator() {
                     </div>
                   </div>
 
-                  {/* Flow Screen Body based on flowScreenStep (1 to 5) */}
-                  {/* SCREEN 2: Enter Location Details */}
-                  {flowScreenStep === 1 && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs text-slate-800">
-                      <div>
-                        <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Athlete Registration</h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Please enter your location details.</p>
+                  {/* WhatsApp Flow Screen Body: one screen per real Meta Flow step */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-slate-800">
+                    {/* Header + step progress (REG_LOCATION → REG_DOB → REG_DETAILS → REG_CONFIRM) */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        {FLOW_STEPS.map((s, i) => (
+                          <div key={s.id} className={`h-1.5 flex-1 rounded-full transition-all ${i + 1 <= flowScreenStep ? 'bg-[#005d4b]' : 'bg-slate-200'}`} title={s.id} />
+                        ))}
                       </div>
+                      <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{FLOW_STEPS[flowScreenStep - 1].title}</h2>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{FLOW_STEPS[flowScreenStep - 1].subtitle}</p>
+                      {flowStepError && (
+                        <div className="mt-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-3 py-2 text-[10.5px] font-semibold flex items-start gap-1.5">
+                          <span>⚠️</span>
+                          <span>{flowStepError}</span>
+                        </div>
+                      )}
+                    </div>
 
+                    {/* SECTION 1: PERSONAL & LOCATION DETAILS (REG_LOCATION) */}
+                    {flowScreenStep === 1 && (
+                    <div className="space-y-3 pt-1">
                       {/* Full Name */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-700">Full Name <span className="text-rose-500">*</span></label>
@@ -2436,7 +2542,7 @@ export default function FlowSimulator() {
                             <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2z"/>
                             </svg>
-                            <span className="font-bold text-xs text-slate-900 font-mono">{registrationDraft.contact || '+91 98765 43210'}</span>
+                            <span className="font-bold text-xs text-slate-900 font-mono">{registrationDraft.contact || '+91 91234 56789'}</span>
                           </div>
                           <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
                         </div>
@@ -2505,27 +2611,15 @@ export default function FlowSimulator() {
                           <span className="absolute left-2.5 top-2.5 text-slate-400 text-xs">📍</span>
                         </div>
                       </div>
-
-                      {/* Next Button */}
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(2)}
-                          className="w-full py-2.5 px-4 bg-[#005d4b] hover:bg-[#075e54] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-98"
-                        >
-                          <span>Next</span>
-                          <span>&gt;</span>
-                        </button>
-                      </div>
                     </div>
-                  )}
+                    )}
 
-                  {/* SCREEN 3: Enter Date of Birth & Age */}
-                  {flowScreenStep === 2 && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-slate-800">
+                    {/* SECTION 2: DATE OF BIRTH & AGE (REG_DOB) */}
+                    {flowScreenStep === 2 && (
+                    <div className="pt-1 space-y-3">
                       <div>
-                        <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Date of Birth &amp; Age</h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Please provide your date of birth.</p>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Date of Birth &amp; Age</h3>
+                        <p className="text-[10px] text-slate-500">Please provide your date of birth.</p>
                       </div>
 
                       {/* Date of Birth */}
@@ -2553,9 +2647,9 @@ export default function FlowSimulator() {
                       </div>
 
                       {/* Info alert */}
-                      <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 flex items-start gap-2 text-emerald-800">
-                        <span className="text-base shrink-0 mt-0.5">ℹ️</span>
-                        <p className="text-[11px] leading-relaxed">
+                      <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2.5 flex items-start gap-2 text-emerald-800">
+                        <span className="text-sm shrink-0 mt-0.5">ℹ️</span>
+                        <p className="text-[10px] leading-relaxed">
                           Age will be calculated automatically based on your date of birth.
                         </p>
                       </div>
@@ -2563,7 +2657,7 @@ export default function FlowSimulator() {
                       {/* Age Auto-calculated Badge */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-700">Age</label>
-                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="text-slate-400 text-sm">👤</span>
                             <span className="font-bold text-sm text-slate-900">{registrationDraft.age || '27'} Years</span>
@@ -2571,34 +2665,15 @@ export default function FlowSimulator() {
                           <span className="text-[10px] text-slate-400 font-medium">(Auto-calculated)</span>
                         </div>
                       </div>
-
-                      {/* Back & Next Navigation */}
-                      <div className="flex items-center gap-2 pt-6">
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(1)}
-                          className="flex-1 py-2.5 px-3 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span>&lt; Back</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(3)}
-                          className="flex-1 py-2.5 px-3 bg-[#005d4b] hover:bg-[#075e54] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span>Next</span>
-                          <span>&gt;</span>
-                        </button>
-                      </div>
                     </div>
-                  )}
+                    )}
 
-                  {/* SCREEN 4: Enter Remaining Details */}
-                  {flowScreenStep === 3 && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-slate-800">
+                    {/* SECTION 3: ADDITIONAL INFORMATION + PHOTO (REG_DETAILS) */}
+                    {flowScreenStep === 3 && (<>
+                    <div className="pt-1 space-y-3">
                       <div>
-                        <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Additional Information</h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Please complete the remaining details.</p>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Additional Information</h3>
+                        <p className="text-[10px] text-slate-500">Please complete the remaining details.</p>
                       </div>
 
                       {/* Blood Group */}
@@ -2627,7 +2702,7 @@ export default function FlowSimulator() {
                         </div>
                         <div className="relative">
                           <textarea
-                            rows={4}
+                            rows={3}
                             maxLength={300}
                             value={registrationDraft.address}
                             onChange={(e) => setRegistrationDraft(prev => ({ ...prev, address: e.target.value }))}
@@ -2637,147 +2712,111 @@ export default function FlowSimulator() {
                           <span className="absolute left-2.5 top-2.5 text-slate-400 text-xs">🏠</span>
                         </div>
                       </div>
-
-                      {/* Back & Next Navigation */}
-                      <div className="flex items-center gap-2 pt-6">
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(2)}
-                          className="flex-1 py-2.5 px-3 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span>&lt; Back</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(4)}
-                          className="flex-1 py-2.5 px-3 bg-[#005d4b] hover:bg-[#075e54] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span>Next</span>
-                          <span>&gt;</span>
-                        </button>
-                      </div>
                     </div>
-                  )}
 
-                  {/* SCREEN 5: Upload Photo */}
-                  {flowScreenStep === 4 && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-slate-800 flex flex-col justify-between">
-                      <div className="space-y-3.5">
-                        <div>
-                          <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Upload Your Photo</h2>
-                          <p className="text-[11px] text-slate-500 mt-0.5">Please upload a clear passport size photo for your ID card.</p>
-                        </div>
+                    {/* SECTION 4: UPLOAD YOUR PHOTO */}
+                    <div className="pt-2 border-t border-slate-200/80 space-y-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Upload Your Photo</h3>
+                        <p className="text-[10px] text-slate-500">Please upload a clear passport size photo for your ID card.</p>
+                      </div>
 
-                        {/* Passport Photo Preview Container with Pencil Badge */}
-                        <div className="flex flex-col items-center py-2">
-                          <div
-                            onClick={() => {
-                              setImageToCrop(registrationDraft.photo || '/athletes/1.png')
-                              setCropModalOpen(true)
-                            }}
-                            className="relative w-[140px] h-[140px] bg-slate-100 rounded-2xl border-2 border-teal-600 overflow-visible shadow-md flex items-center justify-center cursor-pointer group"
-                            title="Click to crop photo"
-                          >
+                      {/* Passport Photo Preview Container with Pencil Badge */}
+                      <div className="flex flex-col items-center py-1">
+                        <div
+                          onClick={() => {
+                            setImageToCrop(registrationDraft.photo || '/athletes/1.png')
+                            setCropModalOpen(true)
+                          }}
+                          className="relative w-[130px] h-[130px] bg-slate-100 rounded-2xl border-2 border-teal-600 overflow-visible shadow-md flex items-center justify-center cursor-pointer group"
+                          title="Click to crop photo"
+                        >
+                          {registrationDraft.photo ? (
                             <img
-                              src={registrationDraft.photo || '/athletes/1.png'}
+                              src={registrationDraft.photo}
                               alt="Athlete Passport Photo"
                               className="w-full h-full object-cover object-top rounded-xl"
                             />
-                            {/* Circular Green Pencil Edit Badge on Bottom-Right */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setImageToCrop(registrationDraft.photo || '/athletes/1.png')
-                                setCropModalOpen(true)
-                              }}
-                              className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md border-2 border-white cursor-pointer hover:bg-emerald-700 hover:scale-105 transition-all"
-                              title="Crop / Edit Photo"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                              </svg>
-                            </button>
-                          </div>
-
-                          {/* Upload Button */}
-                          <label className="mt-4 py-2.5 px-6 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-2 cursor-pointer shadow-2xs transition-all">
-                            <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          ) : (
+                            <div className="w-full h-full rounded-xl flex flex-col items-center justify-center text-slate-400 bg-slate-50">
+                              <span className="text-2xl">📷</span>
+                              <span className="text-[9px] font-bold mt-1 text-rose-500">PHOTO REQUIRED</span>
+                            </div>
+                          )}
+                          {/* Circular Green Pencil Edit Badge on Bottom-Right */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setImageToCrop(registrationDraft.photo || '/athletes/1.png')
+                              setCropModalOpen(true)
+                            }}
+                            className="absolute -bottom-2 -right-2 w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md border-2 border-white cursor-pointer hover:bg-emerald-700 hover:scale-105 transition-all"
+                            title="Crop / Edit Photo"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
-                            <span>Upload Photo (JPG/PNG)</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) {
-                                  const reader = new FileReader()
-                                  reader.onload = () => {
-                                    setImageToCrop(reader.result)
-                                    setCropModalOpen(true)
-                                  }
-                                  reader.readAsDataURL(file)
-                                }
-                              }}
-                            />
-                          </label>
-                          <span className="text-[10px] text-slate-400 mt-1.5">Recommended size: 300 DPI | Max size: 5 MB</span>
+                          </button>
+                        </div>
 
-                          {/* Quick Sample Avatars */}
-                          <div className="flex items-center gap-2 mt-3">
-                            {['/athletes/1.png', '/athletes/2.png', '/athletes/3.png', '/athletes/4.png'].map((pSrc, pIdx) => (
-                              <button
-                                key={pIdx}
-                                type="button"
-                                onClick={() => {
-                                  setImageToCrop(pSrc)
+                        {/* Upload Button */}
+                        <label className="mt-3 py-2 px-5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-2 cursor-pointer shadow-2xs transition-all">
+                          <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span>Upload Photo (JPG/PNG)</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = () => {
+                                  setImageToCrop(reader.result)
                                   setCropModalOpen(true)
-                                }}
-                                className={`w-8 h-8 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
-                                  registrationDraft.photo === pSrc ? 'border-teal-600 ring-2 ring-teal-400 scale-105' : 'border-slate-200 opacity-60 hover:opacity-100'
-                                }`}
-                                title="Select & Crop this photo"
-                              >
-                                <img src={pSrc} alt="athlete" className="w-full h-full object-cover object-top" />
-                              </button>
-                            ))}
-                          </div>
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                          />
+                        </label>
+                        <span className="text-[10px] text-slate-400 mt-1">Recommended size: 300 DPI | Max size: 5 MB</span>
+
+                        {/* Quick Sample Avatars */}
+                        <div className="flex items-center gap-2 mt-2.5">
+                          {['/athletes/1.png', '/athletes/2.png', '/athletes/3.png', '/athletes/4.png'].map((pSrc, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() => {
+                                setRegistrationDraft(prev => ({ ...prev, photo: pSrc }))
+                              }}
+                              className={`w-8 h-8 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                                registrationDraft.photo === pSrc ? 'border-teal-600 ring-2 ring-teal-400 scale-105' : 'border-slate-200 opacity-60 hover:opacity-100'
+                              }`}
+                              title="Select this sample photo"
+                            >
+                              <img src={pSrc} alt="athlete" className="w-full h-full object-cover object-top" />
+                            </button>
+                          ))}
                         </div>
                       </div>
-
-                      {/* Back & Next Navigation */}
-                      <div className="flex items-center gap-2 pt-4">
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(3)}
-                          className="flex-1 py-2.5 px-3 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span>&lt; Back</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFlowScreenStep(5)}
-                          className="flex-1 py-2.5 px-3 bg-[#005d4b] hover:bg-[#075e54] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <span>Next</span>
-                          <span>&gt;</span>
-                        </button>
-                      </div>
                     </div>
-                  )}
+                    </>)}
 
-                  {/* SCREEN 6: Confirm Your Details */}
-                  {flowScreenStep === 5 && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs text-slate-800">
+                    {/* SECTION 5: CONFIRM YOUR DETAILS (REG_CONFIRM) */}
+                    {flowScreenStep === 4 && (
+                    <div className="pt-1 space-y-2.5">
                       <div>
-                        <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Confirm Your Details</h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Please review your details before submitting.</p>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Confirm Your Details</h3>
+                        <p className="text-[10px] text-slate-500">Please review your details before submitting.</p>
                       </div>
 
-                      {/* Details Table matching Screenshot 6 */}
+                      {/* Details Table matching Screenshot 5 */}
                       <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 space-y-2 text-[11px]">
                         <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
                           <span className="text-slate-500 font-medium flex items-center gap-1">👤 Full Name</span>
@@ -2785,7 +2824,7 @@ export default function FlowSimulator() {
                         </div>
                         <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
                           <span className="text-slate-500 font-medium flex items-center gap-1">📞 Mobile Number</span>
-                          <span className="font-mono font-semibold text-slate-800">{registrationDraft.contact || '+91 98765 43210'}</span>
+                          <span className="font-mono font-semibold text-slate-800">{registrationDraft.contact || '+91 91234 56789'}</span>
                         </div>
                         <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
                           <span className="text-slate-500 font-medium flex items-center gap-1">🏛️ State</span>
@@ -2820,10 +2859,16 @@ export default function FlowSimulator() {
                           <div className="text-[10px] text-slate-700 leading-snug pl-4">{registrationDraft.address}</div>
                         </div>
                         <div className="flex items-center justify-between py-1">
-                          <span className="text-slate-500 font-medium flex items-center gap-1">📷 Photo</span>
-                          <div className="w-9 h-9 rounded-lg border border-teal-500 overflow-hidden shadow-2xs">
-                            <img src={registrationDraft.photo || '/athletes/1.png'} alt="Photo" className="w-full h-full object-cover object-top" />
-                          </div>
+                          <span className="text-slate-500 font-medium flex items-center gap-1">📷 Photo <span className="text-rose-500">*</span></span>
+                          {registrationDraft.photo ? (
+                            <div className="w-8 h-8 rounded-lg border border-teal-500 overflow-hidden shadow-2xs">
+                              <img src={registrationDraft.photo} alt="Photo" className="w-full h-full object-cover object-top" />
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => goToFlowStep(3)} className="text-[10px] font-bold text-rose-600 underline cursor-pointer">
+                              Missing — upload photo
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -2832,26 +2877,46 @@ export default function FlowSimulator() {
                         <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
                         <span className="text-[10px] font-semibold">Please confirm that all the details are correct.</span>
                       </div>
+                    </div>
 
-                      {/* Back & Submit Navigation */}
-                      <div className="flex items-center gap-2 pt-2">
+                    )}
+
+                    {/* FOOTER BUTTONS: Back / Continue (data_exchange) or Submit Registration on the last step */}
+                    <div className="pt-2 pb-2 flex items-center gap-2">
+                      {flowScreenStep > 1 && (
                         <button
                           type="button"
-                          onClick={() => setFlowScreenStep(4)}
-                          className="flex-1 py-2.5 px-3 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                          onClick={() => goToFlowStep(flowScreenStep - 1)}
+                          className="py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 shadow-2xs transition-all cursor-pointer"
                         >
-                          <span>&lt; Back</span>
+                          ← Back
                         </button>
+                      )}
+                      {flowScreenStep < 4 ? (
+                        <button
+                          type="button"
+                          onClick={() => goToFlowStep(flowScreenStep + 1)}
+                          className="flex-1 py-3 px-4 bg-[#005d4b] hover:bg-[#075e54] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                        >
+                          <span>Continue</span>
+                          <span>→</span>
+                        </button>
+                      ) : (
                         <button
                           type="button"
                           onClick={handleFlowSubmit}
-                          className="flex-1 py-2.5 px-3 bg-[#005d4b] hover:bg-[#075e54] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-98"
+                          disabled={!registrationDraft.photo}
+                          title={!registrationDraft.photo ? 'Photo is mandatory' : 'Submit Registration'}
+                          className="flex-1 py-3 px-4 bg-[#005d4b] hover:bg-[#075e54] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                         >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                          </svg>
                           <span>Submit Registration</span>
                         </button>
-                      </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 

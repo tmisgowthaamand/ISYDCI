@@ -1,0 +1,983 @@
+{
+  "version": "6.0",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "REG_LOCATION": [
+      "REG_DOB",
+      "CARD_VIEW"
+    ],
+    "REG_DOB": [
+      "REG_DETAILS"
+    ],
+    "REG_DETAILS": [
+      "REG_CONFIRM"
+    ],
+    "REG_CONFIRM": [
+      "REG_SUCCESS"
+    ],
+    "REG_SUCCESS": [],
+    "CARD_VIEW": []
+  },
+  "screens": [
+    {
+      "id": "REG_LOCATION",
+      "title": "Athlete Registration",
+      "terminal": false,
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Amit Kumar"
+        },
+        "contact_number": {
+          "type": "string",
+          "__example__": "+91 91234 56789"
+        },
+        "state": {
+          "type": "string",
+          "__example__": "Tamil Nadu"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "Chennai"
+        },
+        "assembly": {
+          "type": "string",
+          "__example__": "Velachery"
+        },
+        "zone": {
+          "type": "string",
+          "__example__": "Ward 25"
+        },
+        "dob": {
+          "type": "string",
+          "__example__": "934675200000"
+        },
+        "dob_display": {
+          "type": "string",
+          "__example__": "15 Aug 1999"
+        },
+        "age": {
+          "type": "string",
+          "__example__": "27 Years"
+        },
+        "blood_group": {
+          "type": "string",
+          "__example__": "O+"
+        },
+        "address": {
+          "type": "string",
+          "__example__": "No. 12, 3rd Street, Velachery, Chennai - 600042"
+        },
+        "photo_url": {
+          "type": "string",
+          "__example__": ""
+        },
+        "has_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Athlete Registration"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Step 1 of 4 · Personal & location details"
+          },
+          {
+            "type": "TextBody",
+            "text": "Ministry Reg No: 49/1997 | New Delhi HQ"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📞 Mobile Number • ' ${data.contact_number}`"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Automatically detected from your WhatsApp account — no need to type it."
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.error_message}",
+            "visible": "${data.has_error}"
+          },
+          {
+            "type": "Form",
+            "name": "location_form",
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "full_name",
+                "label": "Full Name",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Official name as per Govt ID"
+              },
+              {
+                "type": "Dropdown",
+                "name": "state",
+                "label": "State / Union Territory",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "Andaman & Nicobar Islands",
+                    "title": "Andaman & Nicobar Islands"
+                  },
+                  {
+                    "id": "Andhra Pradesh",
+                    "title": "Andhra Pradesh"
+                  },
+                  {
+                    "id": "Arunachal Pradesh",
+                    "title": "Arunachal Pradesh"
+                  },
+                  {
+                    "id": "Assam",
+                    "title": "Assam"
+                  },
+                  {
+                    "id": "Bihar",
+                    "title": "Bihar"
+                  },
+                  {
+                    "id": "Chandigarh",
+                    "title": "Chandigarh"
+                  },
+                  {
+                    "id": "Chhattisgarh",
+                    "title": "Chhattisgarh"
+                  },
+                  {
+                    "id": "Dadra & Nagar Haveli and Daman & Diu",
+                    "title": "Dadra & Nagar Haveli and Daman & Diu"
+                  },
+                  {
+                    "id": "Delhi",
+                    "title": "Delhi"
+                  },
+                  {
+                    "id": "Goa",
+                    "title": "Goa"
+                  },
+                  {
+                    "id": "Gujarat",
+                    "title": "Gujarat"
+                  },
+                  {
+                    "id": "Haryana",
+                    "title": "Haryana"
+                  },
+                  {
+                    "id": "Himachal Pradesh",
+                    "title": "Himachal Pradesh"
+                  },
+                  {
+                    "id": "Jammu & Kashmir",
+                    "title": "Jammu & Kashmir"
+                  },
+                  {
+                    "id": "Jharkhand",
+                    "title": "Jharkhand"
+                  },
+                  {
+                    "id": "Karnataka",
+                    "title": "Karnataka"
+                  },
+                  {
+                    "id": "Kerala",
+                    "title": "Kerala"
+                  },
+                  {
+                    "id": "Ladakh",
+                    "title": "Ladakh"
+                  },
+                  {
+                    "id": "Lakshadweep",
+                    "title": "Lakshadweep"
+                  },
+                  {
+                    "id": "Madhya Pradesh",
+                    "title": "Madhya Pradesh"
+                  },
+                  {
+                    "id": "Maharashtra",
+                    "title": "Maharashtra"
+                  },
+                  {
+                    "id": "Manipur",
+                    "title": "Manipur"
+                  },
+                  {
+                    "id": "Meghalaya",
+                    "title": "Meghalaya"
+                  },
+                  {
+                    "id": "Mizoram",
+                    "title": "Mizoram"
+                  },
+                  {
+                    "id": "Nagaland",
+                    "title": "Nagaland"
+                  },
+                  {
+                    "id": "Odisha",
+                    "title": "Odisha"
+                  },
+                  {
+                    "id": "Puducherry",
+                    "title": "Puducherry"
+                  },
+                  {
+                    "id": "Punjab",
+                    "title": "Punjab"
+                  },
+                  {
+                    "id": "Rajasthan",
+                    "title": "Rajasthan"
+                  },
+                  {
+                    "id": "Sikkim",
+                    "title": "Sikkim"
+                  },
+                  {
+                    "id": "Tamil Nadu",
+                    "title": "Tamil Nadu"
+                  },
+                  {
+                    "id": "Telangana",
+                    "title": "Telangana"
+                  },
+                  {
+                    "id": "Tripura",
+                    "title": "Tripura"
+                  },
+                  {
+                    "id": "Uttar Pradesh",
+                    "title": "Uttar Pradesh"
+                  },
+                  {
+                    "id": "Uttarakhand",
+                    "title": "Uttarakhand"
+                  },
+                  {
+                    "id": "West Bengal",
+                    "title": "West Bengal"
+                  }
+                ]
+              },
+              {
+                "type": "TextInput",
+                "name": "district",
+                "label": "District",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "e.g. Chennai"
+              },
+              {
+                "type": "TextInput",
+                "name": "assembly",
+                "label": "Assembly / Constituency",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "e.g. Velachery"
+              },
+              {
+                "type": "TextInput",
+                "name": "zone",
+                "label": "Zone / Ward / Area",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "e.g. Ward 25"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "REG_LOCATION",
+                    "full_name": "${form.full_name}",
+                    "contact_number": "${data.contact_number}",
+                    "state": "${form.state}",
+                    "district": "${form.district}",
+                    "assembly": "${form.assembly}",
+                    "zone": "${form.zone}",
+                    "dob": "${data.dob}",
+                    "dob_display": "${data.dob_display}",
+                    "age": "${data.age}",
+                    "blood_group": "${data.blood_group}",
+                    "address": "${data.address}",
+                    "photo_url": "${data.photo_url}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "REG_DOB",
+      "title": "Date of Birth & Age",
+      "terminal": false,
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Amit Kumar"
+        },
+        "contact_number": {
+          "type": "string",
+          "__example__": "+91 91234 56789"
+        },
+        "state": {
+          "type": "string",
+          "__example__": "Tamil Nadu"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "Chennai"
+        },
+        "assembly": {
+          "type": "string",
+          "__example__": "Velachery"
+        },
+        "zone": {
+          "type": "string",
+          "__example__": "Ward 25"
+        },
+        "dob": {
+          "type": "string",
+          "__example__": "934675200000"
+        },
+        "dob_display": {
+          "type": "string",
+          "__example__": "15 Aug 1999"
+        },
+        "age": {
+          "type": "string",
+          "__example__": "27 Years"
+        },
+        "blood_group": {
+          "type": "string",
+          "__example__": "O+"
+        },
+        "address": {
+          "type": "string",
+          "__example__": "No. 12, 3rd Street, Velachery, Chennai - 600042"
+        },
+        "photo_url": {
+          "type": "string",
+          "__example__": ""
+        },
+        "has_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Date of Birth & Age"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Step 2 of 4 · Please provide your date of birth"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Athlete • ' ${data.full_name}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Mobile • ' ${data.contact_number}`"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.error_message}",
+            "visible": "${data.has_error}"
+          },
+          {
+            "type": "Form",
+            "name": "dob_form",
+            "children": [
+              {
+                "type": "DatePicker",
+                "name": "dob",
+                "label": "Date of Birth",
+                "required": true,
+                "helper-text": "Age will be calculated automatically based on your date of birth."
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "REG_DOB",
+                    "full_name": "${data.full_name}",
+                    "contact_number": "${data.contact_number}",
+                    "state": "${data.state}",
+                    "district": "${data.district}",
+                    "assembly": "${data.assembly}",
+                    "zone": "${data.zone}",
+                    "dob": "${form.dob}",
+                    "dob_display": "${data.dob_display}",
+                    "age": "${data.age}",
+                    "blood_group": "${data.blood_group}",
+                    "address": "${data.address}",
+                    "photo_url": "${data.photo_url}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "REG_DETAILS",
+      "title": "Additional Information",
+      "terminal": false,
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Amit Kumar"
+        },
+        "contact_number": {
+          "type": "string",
+          "__example__": "+91 91234 56789"
+        },
+        "state": {
+          "type": "string",
+          "__example__": "Tamil Nadu"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "Chennai"
+        },
+        "assembly": {
+          "type": "string",
+          "__example__": "Velachery"
+        },
+        "zone": {
+          "type": "string",
+          "__example__": "Ward 25"
+        },
+        "dob": {
+          "type": "string",
+          "__example__": "934675200000"
+        },
+        "dob_display": {
+          "type": "string",
+          "__example__": "15 Aug 1999"
+        },
+        "age": {
+          "type": "string",
+          "__example__": "27 Years"
+        },
+        "blood_group": {
+          "type": "string",
+          "__example__": "O+"
+        },
+        "address": {
+          "type": "string",
+          "__example__": "No. 12, 3rd Street, Velachery, Chennai - 600042"
+        },
+        "photo_url": {
+          "type": "string",
+          "__example__": ""
+        },
+        "has_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Additional Information"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Step 3 of 4 · Please complete the remaining details"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Date of Birth • ' ${data.dob_display}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Age • ' ${data.age} ' auto-calculated'`"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.error_message}",
+            "visible": "${data.has_error}"
+          },
+          {
+            "type": "Form",
+            "name": "details_form",
+            "children": [
+              {
+                "type": "Dropdown",
+                "name": "blood_group",
+                "label": "Blood Group",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "O+",
+                    "title": "O+"
+                  },
+                  {
+                    "id": "A+",
+                    "title": "A+"
+                  },
+                  {
+                    "id": "B+",
+                    "title": "B+"
+                  },
+                  {
+                    "id": "AB+",
+                    "title": "AB+"
+                  },
+                  {
+                    "id": "O-",
+                    "title": "O-"
+                  },
+                  {
+                    "id": "A-",
+                    "title": "A-"
+                  },
+                  {
+                    "id": "B-",
+                    "title": "B-"
+                  },
+                  {
+                    "id": "AB-",
+                    "title": "AB-"
+                  }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "name": "address",
+                "label": "Full Address",
+                "required": true,
+                "helper-text": "House no, street, locality, city - pincode"
+              },
+              {
+                "type": "PhotoPicker",
+                "name": "photo",
+                "label": "Upload Your Photo",
+                "description": "Choose a clear passport-size photo from your gallery. Photo is mandatory for your ID card. JPG or PNG, max 5 MB.",
+                "photo-source": "gallery",
+                "min-uploaded-photos": 1,
+                "max-uploaded-photos": 1,
+                "max-file-size-kb": 5120
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "REG_DETAILS",
+                    "full_name": "${data.full_name}",
+                    "contact_number": "${data.contact_number}",
+                    "state": "${data.state}",
+                    "district": "${data.district}",
+                    "assembly": "${data.assembly}",
+                    "zone": "${data.zone}",
+                    "dob": "${data.dob}",
+                    "dob_display": "${data.dob_display}",
+                    "age": "${data.age}",
+                    "blood_group": "${form.blood_group}",
+                    "address": "${form.address}",
+                    "photo_url": "${data.photo_url}",
+                    "photo": "${form.photo}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "REG_CONFIRM",
+      "title": "Confirm Your Details",
+      "terminal": false,
+      "data": {
+        "full_name": {
+          "type": "string",
+          "__example__": "Amit Kumar"
+        },
+        "contact_number": {
+          "type": "string",
+          "__example__": "+91 91234 56789"
+        },
+        "state": {
+          "type": "string",
+          "__example__": "Tamil Nadu"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "Chennai"
+        },
+        "assembly": {
+          "type": "string",
+          "__example__": "Velachery"
+        },
+        "zone": {
+          "type": "string",
+          "__example__": "Ward 25"
+        },
+        "dob": {
+          "type": "string",
+          "__example__": "934675200000"
+        },
+        "dob_display": {
+          "type": "string",
+          "__example__": "15 Aug 1999"
+        },
+        "age": {
+          "type": "string",
+          "__example__": "27 Years"
+        },
+        "blood_group": {
+          "type": "string",
+          "__example__": "O+"
+        },
+        "address": {
+          "type": "string",
+          "__example__": "No. 12, 3rd Street, Velachery, Chennai - 600042"
+        },
+        "photo_url": {
+          "type": "string",
+          "__example__": ""
+        },
+        "has_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        },
+        "photo_preview": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Confirm Your Details"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Step 4 of 4 · Please review your details before submitting"
+          },
+          {
+            "type": "TextCaption",
+            "text": "${data.error_message}",
+            "visible": "${data.has_error}"
+          },
+          {
+            "type": "Image",
+            "src": "${data.photo_preview}",
+            "width": 150,
+            "height": 150,
+            "scale-type": "cover",
+            "alt-text": "Athlete passport photo"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'👤 Full Name • ' ${data.full_name}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📞 Mobile Number • ' ${data.contact_number}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🏛️ State • ' ${data.state}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📍 District • ' ${data.district}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📍 Assembly • ' ${data.assembly}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📍 Zone • ' ${data.zone}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📅 Date of Birth • ' ${data.dob_display}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🎂 Age • ' ${data.age}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🩸 Blood Group • ' ${data.blood_group}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🏠 Address • ' ${data.address}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📷 Photo • Uploaded ✅'`"
+          },
+          {
+            "type": "Form",
+            "name": "confirm_form",
+            "children": [
+              {
+                "type": "OptIn",
+                "name": "confirm",
+                "label": "I confirm that all the details are correct.",
+                "required": true
+              },
+              {
+                "type": "Footer",
+                "label": "Submit Registration",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "REG_CONFIRM",
+                    "full_name": "${data.full_name}",
+                    "contact_number": "${data.contact_number}",
+                    "state": "${data.state}",
+                    "district": "${data.district}",
+                    "assembly": "${data.assembly}",
+                    "zone": "${data.zone}",
+                    "dob": "${data.dob}",
+                    "dob_display": "${data.dob_display}",
+                    "age": "${data.age}",
+                    "blood_group": "${data.blood_group}",
+                    "address": "${data.address}",
+                    "photo_url": "${data.photo_url}",
+                    "confirm": "${form.confirm}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "REG_SUCCESS",
+      "title": "Registration Successful",
+      "terminal": true,
+      "data": {
+        "name": {
+          "type": "string",
+          "__example__": "AMIT KUMAR"
+        },
+        "member_id": {
+          "type": "string",
+          "__example__": "ISYDCI-684DDC04"
+        },
+        "state": {
+          "type": "string",
+          "__example__": "TAMIL NADU"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "CHENNAI"
+        },
+        "card_url": {
+          "type": "string",
+          "__example__": "https://isydci.com/membership-card?id=ISYDCI-684DDC04"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🎉 Registration Successful!"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Welcome to the ISYDCI National Sports Community"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Thank you ' ${data.name} '!'`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Your athlete registration has been saved in the ISYDCI National Database.'`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🆔 Member ID • ' ${data.member_id}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📍 State • ' ${data.state}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📍 District • ' ${data.district}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'✅ Status • Verified Athlete'`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Tap Done to receive your official Front and Back membership card here in WhatsApp.'`"
+          },
+          {
+            "type": "Footer",
+            "label": "Done",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "status": "REGISTERED",
+                "member_id": "${data.member_id}",
+                "name": "${data.name}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CARD_VIEW",
+      "title": "My Membership Card",
+      "terminal": true,
+      "data": {
+        "name": {
+          "type": "string",
+          "__example__": "AMIT KUMAR"
+        },
+        "member_id": {
+          "type": "string",
+          "__example__": "ISYDCI-684DDC04"
+        },
+        "state": {
+          "type": "string",
+          "__example__": "TAMIL NADU"
+        },
+        "district": {
+          "type": "string",
+          "__example__": "CHENNAI"
+        },
+        "assembly": {
+          "type": "string",
+          "__example__": "Velachery"
+        },
+        "dob": {
+          "type": "string",
+          "__example__": "15 Aug 1999"
+        },
+        "blood_group": {
+          "type": "string",
+          "__example__": "O+"
+        },
+        "contact": {
+          "type": "string",
+          "__example__": "+91 91234 56789"
+        },
+        "status": {
+          "type": "string",
+          "__example__": "Verified Athlete ✅"
+        },
+        "card_url": {
+          "type": "string",
+          "__example__": "https://isydci.com/membership-card?id=ISYDCI-684DDC04"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🪪 You are already registered"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "ISYDCI Verified Athlete Membership"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'👤 Athlete • ' ${data.name}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🆔 Member ID • ' ${data.member_id}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📍 ' ${data.state} ' • ' ${data.district}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📅 DOB • ' ${data.dob}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'🩸 Blood Group • ' ${data.blood_group}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'📞 Mobile • ' ${data.contact}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Status • ' ${data.status}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Tap below to receive your Front and Back membership card in WhatsApp.'`"
+          },
+          {
+            "type": "Footer",
+            "label": "Get My Card",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "action": "GET_CARD",
+                "member_id": "${data.member_id}",
+                "name": "${data.name}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

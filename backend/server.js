@@ -5,6 +5,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import membersRouter from './routes/members.js'
 import authRouter from './routes/auth.js'
+import flowEndpointRouter from './routes/flowEndpoint.js'
+import whatsappWebhookRouter from './routes/whatsappWebhook.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -38,8 +40,8 @@ app.use((req, res, next) => {
 
   const start = Date.now()
   const origin = req.headers.origin || req.headers.referer || 'direct'
-  const isVercel = origin.includes('isydci.vercel.app')
-  const clientTag = isVercel ? '🟢 [VERCEL: isydci.vercel.app]' : `🌐 [${origin}]`
+  const isLiveSite = origin.includes('isydci.com')
+  const clientTag = isLiveSite ? '🟢 [LIVE: isydci.com]' : `🌐 [${origin}]`
 
   res.on('finish', () => {
     const duration = Date.now() - start
@@ -103,7 +105,7 @@ app.get('/', (req, res) => {
     success: true,
     service: 'ISYDCI Cloudinary & Membership API',
     status: 'ONLINE & LIVE',
-    frontend: 'https://isydci.vercel.app/',
+    frontend: 'https://isydci.com',
     backend: 'https://isydci.onrender.com',
     liveLogging: 'ACTIVE — Real-time request monitoring enabled',
     endpoints: {
@@ -113,6 +115,8 @@ app.get('/', (req, res) => {
       memberById: '/api/members/:id',
       stats: '/api/stats',
       adminAuth: '/api/auth/login',
+      whatsappWebhook: '/api/whatsapp/webhook',
+      whatsappFlowEndpoint: '/api/whatsapp/flow-endpoint',
     },
     totalCapturedRequests: recentLiveLogs.length,
     timestamp: new Date().toISOString(),
@@ -123,7 +127,7 @@ app.get('/api', (req, res) => {
   res.json({
     success: true,
     service: 'ISYDCI API Gateway',
-    frontend: 'https://isydci.vercel.app/',
+    frontend: 'https://isydci.com',
     backend: 'https://isydci.onrender.com',
     status: 'online',
     timestamp: new Date().toISOString(),
@@ -135,7 +139,7 @@ app.get('/api/live-logs', (req, res) => {
   res.json({
     success: true,
     service: 'ISYDCI Live Request Logs',
-    frontendUrl: 'https://isydci.vercel.app/',
+    frontendUrl: 'https://isydci.com',
     backendUrl: 'https://isydci.onrender.com',
     totalRequestsCaptured: recentLiveLogs.length,
     recentRequests: recentLiveLogs,
@@ -149,7 +153,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     service: 'ISYDCI Membership & Cloudinary API',
     timestamp: new Date().toISOString(),
-    frontendUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || 'https://isydci.vercel.app/',
+    frontendUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || 'https://isydci.com',
     backendUrl: 'https://isydci.onrender.com',
     cloudinaryConfigured: !!(process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME),
     adminConfigured: !!(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD),
@@ -160,6 +164,10 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRouter)
 app.use('/api/members', membersRouter)
 app.use('/api', membersRouter) // exposes /api/stats
+app.use('/api/whatsapp/flow-endpoint', flowEndpointRouter)
+app.use('/api/whatsapp/webhook', whatsappWebhookRouter)
+app.use('/webhook', whatsappWebhookRouter)
+app.use('/api/whatsapp/wacto', whatsappWebhookRouter) // legacy path kept for older Meta app configs
 
 // Global Error Handler
 app.use((err, req, res, next) => {

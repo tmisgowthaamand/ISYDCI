@@ -5,7 +5,6 @@ import QRCode from 'qrcode'
 export const CardFront = forwardRef(function CardFront({ member, className = '' }, ref) {
   const {
     name = '',
-    photo = '',
     leaderPhoto = '/events/1.png',
     leaderName = 'Visanath Shetty',
     state = '',
@@ -22,6 +21,9 @@ export const CardFront = forwardRef(function CardFront({ member, className = '' 
     email = 'support@isydci.org',
     addressHQ = 'VB Bhavan, Room No. 308, Rafi Marg, Sansad Marg, New Delhi – 110001',
   } = member || {}
+
+  // Records saved from WhatsApp / admin carry `photoUrl`; web registrations carry `photo`. Accept both.
+  const photo = (member && (member.photo || member.photoUrl)) || ''
 
   return (
     <div
