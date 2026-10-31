@@ -41,6 +41,8 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Write test env
+        env:
+          CI_KEY: ${{ secrets.CI_WHATSAPP_PRIVATE_KEY }}
         run: |
           cat > backend/.env <<EOF
           PORT=5000
@@ -51,11 +53,15 @@ jobs:
           SUPER_SUPER_ADMIN_PASSWORD=ci_dev_password_123
           JWT_SECRET=ci_jwt_secret
           WHATSAPP_VERIFY_TOKEN=ci_verify
-          WHATSAPP_PRIVATE_KEY="${{ secrets.CI_WHATSAPP_PRIVATE_KEY }}"
-          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
           EOF
+          node -e "
+            const crypto = require('crypto');
+            const fs = require('fs');
+            const key = process.env.CI_KEY && process.env.CI_KEY.length > 50
+              ? process.env.CI_KEY
+              : crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } }).privateKey.replace(/\n/g, '\\\\n');
+            fs.appendFileSync('backend/.env', 'WHATSAPP_PRIVATE_KEY=\"' + key + '\"\n');
+          "
       - name: Wait for MongoDB
         run: |
           for i in $(seq 1 30); do

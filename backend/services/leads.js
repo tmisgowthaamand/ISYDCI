@@ -340,13 +340,13 @@ export async function deleteLead(rawPhone) {
 // Stats tiles: indexed per-status / per-source counts run in parallel (a $group would scan every
 // row at 10 lakh leads), cached for 20 s so the dashboard never hammers the database.
 let statsCache = { at: 0, value: null }
-export async function leadStats() {
-  if (statsCache.value && Date.now() - statsCache.at < 20000) return statsCache.value
+export async function leadStats(opts = {}) {
+  if (!opts.force && statsCache.value && Date.now() - statsCache.at < 5000) return statsCache.value
   const statuses = Object.values(LEAD_STATUS)
   const [statusCounts, sourceCounts, total, today, unread] = await Promise.all([
     Promise.all(statuses.map(s => LEADS().countDocuments({ status: s }))),
     Promise.all(LEAD_SOURCES.map(s => LEADS().countDocuments({ source: s }))),
-    LEADS().estimatedDocumentCount(),
+    LEADS().countDocuments({}),
     LEADS().countDocuments({ createdAt: { $gte: new Date(Date.now() - 24 * 3600 * 1000) } }),
     LEADS().countDocuments({ unread: true }),
   ])

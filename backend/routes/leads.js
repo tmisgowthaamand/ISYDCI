@@ -71,9 +71,10 @@ router.get('/', requireAuth(), async (req, res) => {
   }
 })
 
-router.get('/stats', requireAuth(), async (_req, res) => {
+router.get('/stats', requireAuth(), async (req, res) => {
   try {
-    res.json({ success: true, stats: await leadStats() })
+    const force = req.query.fresh === '1' || req.query.nocache === '1'
+    res.json({ success: true, stats: await leadStats({ force }) })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
   }

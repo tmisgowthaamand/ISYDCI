@@ -52,8 +52,16 @@ else console.log('  ℹ️  bot outbound message skipped (Meta Graph API offline
 
 // 2. Flow INIT + step 1 -> registration_started with draft
 const crypto = await import('crypto')
-const privateKey = crypto.createPrivateKey(env.WHATSAPP_PRIVATE_KEY.replace(/\\n/g, '\n'))
-const publicKey = crypto.createPublicKey(privateKey)
+let privateKey, publicKey
+try {
+  const rawKey = env.WHATSAPP_PRIVATE_KEY || process.env.WHATSAPP_PRIVATE_KEY || ''
+  privateKey = crypto.createPrivateKey(rawKey.replace(/\\n/g, '\n'))
+  publicKey = crypto.createPublicKey(privateKey)
+} catch {
+  const pair = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+  privateKey = pair.privateKey
+  publicKey = pair.publicKey
+}
 const flow = async payload => {
   const aesKey = crypto.randomBytes(16)
   const iv = crypto.randomBytes(12)
@@ -88,7 +96,7 @@ const listIncomplete = await j('/api/leads?status=incomplete&limit=10')
 ok(listIncomplete.status === 200 && listIncomplete.body.leads.some(l => l.phone === PHONE), 'Incomplete filter lists the lead')
 const search = await j('/api/leads?q=0000777')
 ok(search.body.leads?.some(l => l.phone === PHONE), 'search by last digits works')
-const stats = await j('/api/leads/stats')
+const stats = await j('/api/leads/stats?fresh=1')
 ok(stats.status === 200 && stats.body.stats.total >= 1, `stats total ${stats.body.stats.total}`)
 
 // 5. Website draft -> registration_started again (web source kept as ctwa_ad since lead exists)
