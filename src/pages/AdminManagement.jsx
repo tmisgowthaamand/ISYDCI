@@ -134,8 +134,7 @@ export default function AdminManagement() {
       m.name?.toLowerCase().includes(search.toLowerCase()) ||
       m.memberId?.toLowerCase().includes(search.toLowerCase()) ||
       m.contact?.toLowerCase().includes(search.toLowerCase()) ||
-      m.district?.toLowerCase().includes(search.toLowerCase()) ||
-      m.assembly?.toLowerCase().includes(search.toLowerCase())
+      m.district?.toLowerCase().includes(search.toLowerCase())
     
     if (statusFilter === 'ALL') return matchesSearch
     return matchesSearch && m.status === statusFilter

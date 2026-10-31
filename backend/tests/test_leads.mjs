@@ -65,7 +65,7 @@ const flow = async payload => {
   return JSON.parse(Buffer.concat([d.update(buf.subarray(0, buf.length - 16)), d.final()]).toString('utf8'))
 }
 const init = await flow({ action: 'INIT' })
-const s1 = await flow({ action: 'data_exchange', screen: 'REG_LOCATION', data: { ...init.data, full_name: 'Lead Tester', state: 'Tamil Nadu', district: 'Salem', assembly: 'Salem North', zone: 'Ward 2' } })
+const s1 = await flow({ action: 'data_exchange', screen: 'REG_LOCATION', data: { ...init.data, full_name: 'Lead Tester', state: 'Tamil Nadu', district: 'Salem', zone: 'Ward 2' } })
 await sleep(800)
 lead = await j(`/api/leads/${PHONE}`)
 ok(lead.body.lead?.status === 'registration_started', `flow step moves lead to registration_started (${lead.body.lead?.status})`)

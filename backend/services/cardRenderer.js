@@ -257,7 +257,6 @@ async function drawFront(ctx, member, logo, photo) {
     name = '',
     state = '',
     district = '',
-    assembly = '',
     zone = '',
     memberId = '',
   } = member

@@ -1358,7 +1358,6 @@
       const name = document.getElementById('input-name').value.trim();
       const state = document.getElementById('input-state').value.trim();
       const district = document.getElementById('input-district').value.trim();
-      const assembly = document.getElementById('input-assembly') ? document.getElementById('input-assembly').value.trim() : '';
       const zone = document.getElementById('input-zone').value.trim();
 
       // Back details (No placeholder dash lines!)
@@ -1369,20 +1368,17 @@
       const contact = document.getElementById('input-contact').value.trim();
 
       // Automatically generate Member Card ID starting with sequence as user types
-      const hasAnyInput = name || state || district || assembly || zone || dob || age || blood || address || contact;
+      const hasAnyInput = name || state || district || zone || dob || age || blood || address || contact;
       if (hasAnyInput) {
         autoMemberCardId = getNextSequenceId(state);
       } else {
         autoMemberCardId = '';
       }
 
-      // Update Front Card: Assembly is Title Case, State/District/Zone are Capital Case
+      // Update Front Card: State/District/Zone are Capital Case
       document.getElementById('display-name').textContent = name ? name.toUpperCase() : '';
       document.getElementById('display-state').textContent = state ? state.toUpperCase() : '';
       document.getElementById('display-district').textContent = district ? district.toUpperCase() : '';
-      if (document.getElementById('display-assembly')) {
-        document.getElementById('display-assembly').textContent = assembly ? toTitleCase(assembly) : '';
-      }
       document.getElementById('display-zone').textContent = zone ? zone.toUpperCase() : '';
       document.getElementById('display-card-id').textContent = autoMemberCardId;
 
@@ -1690,7 +1686,6 @@
       document.getElementById('input-name').value = 'LAKSHAN KARTHIK';
       document.getElementById('input-state').value = 'TAMIL NADU';
       document.getElementById('input-district').value = 'CHENNAI';
-      if (document.getElementById('input-assembly')) document.getElementById('input-assembly').value = 'Thiyagarayanagar';
       document.getElementById('input-zone').value = 'CHENNAI ZONE';
       document.getElementById('input-dob').value = '05 Sep 1994';
       document.getElementById('input-age').value = '32';
@@ -1711,7 +1706,6 @@
       document.getElementById('input-name').value = '';
       document.getElementById('input-state').value = '';
       document.getElementById('input-district').value = '';
-      if (document.getElementById('input-assembly')) document.getElementById('input-assembly').value = '';
       document.getElementById('input-zone').value = '';
       document.getElementById('input-dob').value = '';
       document.getElementById('input-age').value = '';
@@ -1764,7 +1758,6 @@
           cardBackImage: backPng,
           state: document.getElementById('input-state').value.trim() || 'TAMIL NADU',
           district: document.getElementById('input-district').value.trim(),
-          assembly: document.getElementById('input-assembly') ? document.getElementById('input-assembly').value.trim() : '',
           zone: document.getElementById('input-zone').value.trim(),
           dob: document.getElementById('input-dob').value.trim(),
           age: document.getElementById('input-age').value.trim(),

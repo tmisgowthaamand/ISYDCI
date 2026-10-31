@@ -9,7 +9,6 @@ export const CardFront = forwardRef(function CardFront({ member, className = '' 
     leaderName = 'Visanath Shetty',
     state = '',
     district = '',
-    assembly = '',
     zone = '',
     memberId = '',
     regNo = '49/1997',
@@ -98,7 +97,7 @@ export const CardFront = forwardRef(function CardFront({ member, className = '' 
           {name || ''}
         </h2>
 
-        {/* Badges / State / District / Assembly / Zone */}
+        {/* Badges / State / District / Zone */}
         <div className="mt-0.5 flex flex-col items-center gap-0.5 w-full">
           {/* State (Capital Case) */}
           {state ? (

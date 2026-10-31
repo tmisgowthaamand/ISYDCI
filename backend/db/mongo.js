@@ -38,6 +38,15 @@ export async function closeDb() {
 }
 
 async function ensureIndexes(d) {
+  try {
+    const existing = await d.collection('members').indexes().catch(() => [])
+    for (const idx of existing) {
+      if (idx.name && idx.name.includes('_text_') && idx.name !== 'name_text_district_text_state_text') {
+        await d.collection('members').dropIndex(idx.name).catch(() => {})
+      }
+    }
+  } catch (_) {}
+
   await Promise.all([
     d.collection('members').createIndexes([
       { key: { memberId: 1 }, unique: true },
@@ -45,8 +54,24 @@ async function ensureIndexes(d) {
       { key: { phoneKey: 1 } },
       { key: { status: 1 } },
       { key: { createdAt: -1 } },
-      { key: { name: 'text', district: 'text', assembly: 'text', state: 'text' } },
-    ]),
+      { key: { name: 'text', district: 'text', state: 'text' } },
+    ]).catch(async err => {
+      if (err.code === 85) {
+        const idxs = await d.collection('members').indexes().catch(() => [])
+        for (const i of idxs) {
+          if (i.name && i.name.includes('_text_')) await d.collection('members').dropIndex(i.name).catch(() => {})
+        }
+        return d.collection('members').createIndexes([
+          { key: { memberId: 1 }, unique: true },
+          { key: { id: 1 }, unique: true },
+          { key: { phoneKey: 1 } },
+          { key: { status: 1 } },
+          { key: { createdAt: -1 } },
+          { key: { name: 'text', district: 'text', state: 'text' } },
+        ])
+      }
+      throw err
+    }),
     d.collection('leads').createIndexes([
       { key: { phone: 1 }, unique: true },
       { key: { status: 1 } }, // plain index -> countDocuments({status}) is a pure index count

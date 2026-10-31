@@ -84,6 +84,11 @@ export default function AdminMembers() {
     }
   }, [searchParams])
 
+  const handleSearch = (e) => {
+    if (e) e.preventDefault()
+    fetchMembers(searchQuery)
+  }
+
   // Toggle Member Verification Status (Syncs to Backend API)
   const handleToggleStatus = async (member, e) => {
     e.stopPropagation()
@@ -183,8 +188,7 @@ export default function AdminMembers() {
       m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.memberId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.contact?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.district?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.assembly?.toLowerCase().includes(searchQuery.toLowerCase())
+      m.district?.toLowerCase().includes(searchQuery.toLowerCase())
 
     if (statusFilter === 'ALL') return matchesSearch
     return matchesSearch && m.status === statusFilter

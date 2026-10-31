@@ -42,7 +42,6 @@ export async function getAllMembers(q = '', status = '') {
       { name: rx },
       { memberId: rx },
       { district: rx },
-      { assembly: rx },
       { state: rx },
       ...(digits.length >= 4 ? [{ phoneKey: new RegExp(digits + '$') }, { contact: rx }] : []),
     ]

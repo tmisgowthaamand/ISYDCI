@@ -444,7 +444,7 @@
     {
       "nodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
       "type": "interactive",
-      "name": "Registration: District, Assembly & Zone",
+      "name": "Registration: District & Zone",
       "interactiveId": "1cbc84ae-e5ef-49a6-bb49-0981b23d5005",
       "assignedAgent": null,
       "assignedAgents": [],
@@ -463,10 +463,10 @@
       ],
       "data": {
         "interactiveType": "button",
-        "body": "🏛️ *District, Assembly & Zone (Step 4/5)*\n\nPlease enter your local representation details:\n\n• District (e.g. `Chennai`)\n• Assembly Constituency (e.g. `Velachery`)\n• Zone / Region (e.g. `Chennai Zone`)\n\n💬 *Type your District, Assembly & Zone in chat below* (e.g. `Chennai, Velachery, Chennai Zone`), or tap to use sample:",
+        "body": "🏛️ *District & Zone (Step 4/5)*\n\nPlease enter your local representation details:\n\n• District (e.g. `Chennai`)\n• Zone / Region (e.g. `Chennai Zone`)\n\n💬 *Type your District & Zone in chat below* (e.g. `Chennai, Chennai Zone`), or tap to use sample:",
         "header": {
           "type": "text",
-          "text": "District & Assembly"
+          "text": "District & Zone"
         },
         "footer": "Step 4 of 5",
         "action": {
@@ -475,7 +475,7 @@
               "type": "reply",
               "reply": {
                 "id": "fd02e74f-a3d4-4141-942c-7d2a72a2bbc9",
-                "title": "Chennai, Velachery"
+                "title": "Chennai, Chennai Zone"
               }
             },
             {
@@ -509,7 +509,7 @@
         "y": -200
       },
       "keywords": [
-        "Chennai, Velachery"
+        "Chennai, Chennai Zone"
       ],
       "data": {
         "interactiveType": "button",
@@ -813,7 +813,7 @@
       "fromNodeId": "599f171c-dc6c-48f2-9d32-92846bf355ae",
       "toNodeId": "bb278141-72db-4d4c-8588-508102c5ad68",
       "keywords": [
-        "Chennai, Velachery"
+        "Chennai, Chennai Zone"
       ],
       "intentName": "user_reply",
       "delay": 0

@@ -27,7 +27,7 @@ export const SCREENS = {
   CARD: 'CARD_VIEW',
 }
 
-const REG_FIELDS = ['full_name', 'contact_number', 'state', 'district', 'assembly', 'zone', 'dob', 'dob_display', 'age', 'blood_group', 'address', 'photo_url']
+const REG_FIELDS = ['full_name', 'contact_number', 'state', 'district', 'zone', 'dob', 'dob_display', 'age', 'blood_group', 'address', 'photo_url']
 
 // ---------------------------------------------------------------- crypto helpers
 
@@ -146,7 +146,6 @@ function memberCardData(member) {
     member_id: member.memberId || '',
     state: member.state || '',
     district: member.district || '',
-    assembly: member.assembly || '',
     dob: member.dob || '',
     blood_group: member.bloodGroup || '',
     contact: member.contact || '',
@@ -169,7 +168,6 @@ export async function registerFromFlow(fields, senderPhone) {
     contact: formatPhoneDisplay(contactDigits),
     state: clean(fields.state, 60).toUpperCase(),
     district: clean(fields.district, 60).toUpperCase(),
-    assembly: clean(fields.assembly, 60),
     zone: clean(fields.zone, 60).toUpperCase(),
     dob: fields.dob_display || fields.dob || '',
     age: fields.age || '',
@@ -190,7 +188,7 @@ export async function registerFromFlow(fields, senderPhone) {
   console.log(`   👤 Athlete:       ${saved.name}`)
   console.log(`   🆔 Member ID:     ${saved.memberId}`)
   console.log(`   📞 Mobile:        ${saved.contact}`)
-  console.log(`   📍 Location:      ${saved.state} / ${saved.district} / ${saved.assembly} / ${saved.zone}`)
+  console.log(`   📍 Location:      ${saved.state} / ${saved.district} / ${saved.zone}`)
   console.log(`   🎂 DOB / Age:     ${saved.dob} / ${saved.age}`)
   console.log(`   🩸 Blood Group:   ${saved.bloodGroup}`)
   console.log(`   📷 Photo:         ${saved.photoUrl}`)
@@ -304,7 +302,6 @@ router.post('/', async (req, res) => {
         carry.full_name = clean(data.full_name, 60)
         carry.state = clean(data.state, 60)
         carry.district = clean(data.district, 60)
-        carry.assembly = clean(data.assembly, 60)
         carry.zone = clean(data.zone, 60)
         if (carry.full_name.length < 3) response = errorResponse(screen, carry, 'Please enter your full name (minimum 3 letters).')
         else if (!carry.state) response = errorResponse(screen, carry, 'Please select your State / Union Territory.')

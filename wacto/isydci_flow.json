@@ -217,13 +217,6 @@
               },
               {
                 "type": "TextInput",
-                "name": "assembly",
-                "label": "Assembly / Constituency *",
-                "required": true,
-                "helper-text": "e.g. Velachery"
-              },
-              {
-                "type": "TextInput",
                 "name": "zone",
                 "label": "Zone / Ward / Area *",
                 "required": true,
@@ -326,7 +319,6 @@
                     "contact_number": "${form.contact_number}",
                     "state": "${form.state}",
                     "district": "${form.district}",
-                    "assembly": "${form.assembly}",
                     "zone": "${form.zone}",
                     "dob": "${form.dob}",
                     "age": "${form.age}",

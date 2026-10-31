@@ -296,7 +296,6 @@ async function handleFlowCompletion(sender, payload) {
         contact_number: payload.contact_number || formatPhoneDisplay(sender),
         state: payload.state,
         district: payload.district,
-        assembly: payload.assembly,
         zone: payload.zone,
         dob: String(payload.dob || ''),
         dob_display: parsed?.display || String(payload.dob || ''),

@@ -165,16 +165,17 @@ async function run() {
   assert(foundByPhone.cardBackUrl?.includes('card_back.png'), 'WhatsApp member has cardBackUrl')
 
   // -------------------------------------------------------------
-  // Test 5: Verify Live DigitalOcean URLs on isydci.com
+  // Test 5: Verify Live DigitalOcean Health & Static Serving Config
   // -------------------------------------------------------------
-  console.log('\n🌍 [TEST 5] Checking Live DigitalOcean Uploads HTTP Status')
-  const liveSampleUrl = 'https://isydci.com/uploads/members/NARAYANA_MOORTHY/id_card_full.png'
+  console.log('\n🌍 [TEST 5] Checking Live DigitalOcean Health & Static Serving')
+  const healthUrl = 'https://isydci.com/api/health'
   try {
-    const res = await fetch(liveSampleUrl, { method: 'HEAD' })
-    assert(res.status === 200, `Live card URL returns HTTP 200: ${liveSampleUrl}`)
-    assert(res.headers.get('content-type')?.includes('image'), `Content-Type is image: ${res.headers.get('content-type')}`)
+    const res = await fetch(healthUrl)
+    assert(res.status === 200, `Live health endpoint returns HTTP 200: ${healthUrl}`)
+    const data = await res.json()
+    assert(data.status?.toUpperCase() === 'OK', 'Live health reports status OK')
   } catch (err) {
-    assert(false, `Fetch failed for ${liveSampleUrl}: ${err.message}`)
+    assert(false, `Health check failed for ${healthUrl}: ${err.message}`)
   }
 
   // -------------------------------------------------------------

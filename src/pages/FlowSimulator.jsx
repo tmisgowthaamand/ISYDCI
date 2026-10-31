@@ -44,7 +44,6 @@ export default function FlowSimulator() {
     name: '',
     state: 'Tamil Nadu',
     district: 'Chennai',
-    assembly: 'Velachery',
     zone: 'Ward 25',
     dob: '15 Aug 1999',
     age: '27',
@@ -525,7 +524,6 @@ export default function FlowSimulator() {
         contact: userObj.phone ? `+${userObj.phone.replace(/\D/g, '').replace(/^(\d{2})(\d{5})(\d{5})$/, '$1 $2 $3')}` : '+91 91234 56789',
         state: 'Tamil Nadu',
         district: 'Chennai',
-        assembly: 'Velachery',
         zone: 'Ward 25',
         dob: '15 Aug 1999',
         age: '27',
@@ -541,7 +539,6 @@ export default function FlowSimulator() {
         sport: userObj.sport || 'ATHLETICS',
         state: userObj.state || 'Tamil Nadu',
         district: userObj.district || 'Chennai',
-        assembly: userObj.assembly || 'Velachery',
         zone: userObj.zone || 'Ward 25',
         dob: userObj.dob || '15 Aug 1999',
         age: userObj.age || '27',
@@ -576,7 +573,6 @@ export default function FlowSimulator() {
       sport: registrationDraft.sport || 'ATHLETICS',
       state: registrationDraft.state,
       district: registrationDraft.district,
-      assembly: registrationDraft.assembly,
       zone: registrationDraft.zone,
       dob: registrationDraft.dob,
       age: registrationDraft.age,
@@ -944,7 +940,6 @@ export default function FlowSimulator() {
         sport: registrationDraft.sport || 'ATHLETICS',
         state: (registrationDraft.state || 'TAMIL NADU').toUpperCase(),
         district: (registrationDraft.district || 'CHENNAI').toUpperCase(),
-        assembly: registrationDraft.assembly || 'Velachery',
         zone: registrationDraft.zone || 'CHENNAI ZONE',
         dob: registrationDraft.dob || '15 Aug 1994',
         age: registrationDraft.age || '32',
@@ -1084,7 +1079,7 @@ export default function FlowSimulator() {
       }
     }
 
-    // Step 3: User selects or types State -> Transitions to Step 4: District, Assembly & Zone
+    // Step 3: User selects or types State -> Transitions to Step 4: District & Zone
     if (currNodeName.includes('Select State') && optionTitle !== 'Main Menu') {
       let stateVal = 'TAMIL NADU'
       if (optionTitle && optionTitle !== 'Other State / UT') {
@@ -1096,13 +1091,13 @@ export default function FlowSimulator() {
         state: stateVal
       }))
 
-      const step4Node = (flow.nodes || []).find(n => n.name.includes('District, Assembly'))
+      const step4Node = (flow.nodes || []).find(n => n.name.includes('District & Zone') || n.name.includes('District, Assembly'))
       if (step4Node) {
         const dynamicStep4 = {
           ...step4Node,
           data: {
             ...step4Node.data,
-            body: `🏛️ *District, Assembly & Zone (Step 4/5)*\n\nState selected: *${stateVal}*\n\nPlease enter your local representation details:\n• District (e.g. \`Chennai\`)\n• Assembly Constituency (e.g. \`Velachery\`)\n• Zone / Region (e.g. \`Chennai Zone\`)\n\n💬 *Type your District, Assembly & Zone in chat below* (e.g. \`Chennai, Velachery, Chennai Zone\`), or tap below:`
+            body: `🏛️ *District & Zone (Step 4/5)*\n\nState selected: *${stateVal}*\n\nPlease enter your local representation details:\n• District (e.g. \`Chennai\`)\n• Zone / Region (e.g. \`Chennai Zone\`)\n\n💬 *Type your District & Zone in chat below* (e.g. \`Chennai, Chennai Zone\`), or tap below:`
           }
         }
 
@@ -1122,30 +1117,27 @@ export default function FlowSimulator() {
           option: optionTitle,
           fromNode: currentNodeId,
           toNode: step4Node.nodeId,
-          details: `Selected State "${stateVal}", transitioned to Step 4 (District/Assembly)`
+          details: `Selected State "${stateVal}", transitioned to Step 4 (District/Zone)`
         })
         return
       }
     }
 
-    // Step 4: User types District, Assembly & Zone -> Transitions to Step 5: Passport Photo
-    if (currNodeName.includes('District, Assembly') && optionTitle !== 'Main Menu') {
+    // Step 4: User types District & Zone -> Transitions to Step 5: Passport Photo
+    if ((currNodeName.includes('District & Zone') || currNodeName.includes('District, Assembly')) && optionTitle !== 'Main Menu') {
       let distVal = 'CHENNAI'
-      let assmVal = 'Velachery'
       let zoneVal = 'CHENNAI ZONE'
 
-      if (optionTitle !== 'Chennai, Velachery') {
+      if (optionTitle !== 'Chennai, Chennai Zone' && optionTitle !== 'Chennai, Velachery') {
         const parts = optionTitle.split(/[,/-]/).map(s => s.trim()).filter(Boolean)
         if (parts.length >= 1) distVal = parts[0].toUpperCase()
-        if (parts.length >= 2) assmVal = parts[1]
-        if (parts.length >= 3) zoneVal = parts[2]
+        if (parts.length >= 2) zoneVal = parts[1].toUpperCase()
         else zoneVal = `${distVal} ZONE`
       }
 
       setRegistrationDraft(prev => ({
         ...prev,
         district: distVal,
-        assembly: assmVal,
         zone: zoneVal
       }))
 
@@ -1167,7 +1159,7 @@ export default function FlowSimulator() {
           option: optionTitle,
           fromNode: currentNodeId,
           toNode: step5Node.nodeId,
-          details: `Captured District "${distVal}", Assembly "${assmVal}", transitioned to Step 5 (Photo)`
+          details: `Captured District "${distVal}", Zone "${zoneVal}", transitioned to Step 5 (Photo)`
         })
         return
       }
