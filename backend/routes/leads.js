@@ -3,6 +3,7 @@ import { requireAuth } from '../services/auth.js'
 import {
   listLeads, leadStats, getLead, getMessages, markRead, updateLead, addNote, createManualLead,
   exportLeadsCsv, saveWebDraft, upsertLeadFromLeadAd, recordOutbound, LEAD_STATUS_LABEL, LEAD_SOURCES, sweepIncomplete,
+  deleteLead,
 } from '../services/leads.js'
 import { getProvider } from '../services/providers.js'
 import { sendTemplateTo, dispatchRichTemplateMessage } from '../services/templates.js'
@@ -112,6 +113,16 @@ router.get('/:phone', requireAuth(), async (req, res) => {
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' })
     const messages = await getMessages(req.params.phone, { limit: Math.min(500, parseInt(req.query.limit) || 200) })
     res.json({ success: true, lead, messages })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+router.delete('/:phone', requireAuth(), async (req, res) => {
+  try {
+    const deleted = await deleteLead(req.params.phone)
+    if (!deleted) return res.status(404).json({ success: false, message: 'Lead not found' })
+    res.json({ success: true, message: 'Lead and messages deleted' })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
   }

@@ -329,6 +329,14 @@ export async function listLeads({ q = '', status = '', source = '', assignedTo =
   return { total, page, limit, pages: Math.max(1, Math.ceil(total / limit)), leads: items.map(strip) }
 }
 
+export async function deleteLead(rawPhone) {
+  const p = leadPhone(rawPhone)
+  statsCache = { at: 0, value: null }
+  await MESSAGES().deleteMany({ leadPhone: p })
+  const res = await LEADS().deleteOne({ phone: p })
+  return res.deletedCount > 0
+}
+
 // Stats tiles: indexed per-status / per-source counts run in parallel (a $group would scan every
 // row at 10 lakh leads), cached for 20 s so the dashboard never hammers the database.
 let statsCache = { at: 0, value: null }

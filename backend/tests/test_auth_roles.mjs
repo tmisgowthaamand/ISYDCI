@@ -69,8 +69,9 @@ if (testMem && testMem.memberId) {
   ok(pub.status === 200 && pub.body.member?.memberId === testMem.memberId, 'public card lookup by Member ID still open (no token)')
   const phoneLookup = await j(`/api/members/phone/${testMemberPayload.contact}`, {}, saTok)
   ok(phoneLookup.status === 200 && phoneLookup.body.member?.memberId === testMem.memberId, 'phone lookup finds the member')
-  // Cleanup test member
+  // Cleanup test member and linked lead
   await j(`/api/members/${testMem.id || testMem.memberId}`, { method: 'DELETE' }, saTok)
+  await j(`/api/leads/${testMemberPayload.contact}`, { method: 'DELETE' }, saTok)
 }
 
 const stats = await j('/api/stats', {}, saTok)
