@@ -50,12 +50,11 @@ jobs:
           CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
           EOF
-      - name: Start backend
+      - name: Run test suite with backend
         run: |
           (cd backend && node server.js > ../backend.log 2>&1 &)
           for i in $(seq 1 30); do curl -sf http://localhost:5000/api/health && break; sleep 1; done
-      - name: Run test suite
-        run: |
+          curl -sf http://localhost:5000/api/health || { echo "❌ Backend failed to start:"; cat backend.log; exit 1; }
           node backend/tests/test_auth_roles.mjs
           node backend/tests/test_leads.mjs
           node backend/tests/test_templates.mjs
