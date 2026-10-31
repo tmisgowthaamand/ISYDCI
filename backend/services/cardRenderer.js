@@ -5,9 +5,24 @@
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
-import { createCanvas, loadImage, GlobalFonts, Path2D } from '@napi-rs/canvas'
 import QRCode from 'qrcode'
 import { uploadToCloudinary } from '../config/cloudinary.js'
+import { saveMemberCardFiles } from './storage.js'
+
+// Lazy-loaded on demand to ensure instant server boot time
+let canvasModule = null
+let createCanvas, loadImage, GlobalFonts, Path2D
+
+async function initCanvas() {
+  if (!canvasModule) {
+    canvasModule = await import('@napi-rs/canvas')
+    createCanvas = canvasModule.createCanvas
+    loadImage = canvasModule.loadImage
+    GlobalFonts = canvasModule.GlobalFonts
+    Path2D = canvasModule.Path2D
+  }
+  return canvasModule
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -34,8 +49,9 @@ const CARD_H = 540
 const SCALE = 3 // 1020 x 1620 px per side
 
 let fontsReady = false
-function ensureFonts() {
+async function ensureFonts() {
   if (fontsReady) return
+  await initCanvas()
   try {
     GlobalFonts.registerFromPath(path.join(ASSETS, 'fonts/Inter-Bold.ttf'), 'Inter')
     GlobalFonts.registerFromPath(path.join(ASSETS, 'fonts/Inter-Regular.ttf'), 'Inter')
@@ -52,6 +68,7 @@ function font(size, weight = 'normal', italic = false) {
 let logoCache = null
 async function getLogo() {
   if (logoCache) return logoCache
+  await initCanvas()
   const candidates = [path.join(ASSETS, 'logo.png'), path.join(PUBLIC_DIR, 'logo.png')]
   for (const p of candidates) {
     if (fs.existsSync(p)) {
@@ -62,12 +79,38 @@ async function getLogo() {
   return null
 }
 
+let signatureCache = null
+async function getSignature() {
+  if (signatureCache) return signatureCache
+  await initCanvas()
+  const candidates = [
+    path.join(ASSETS, 'signature.png'),
+    path.join(PUBLIC_DIR, 'signature.png')
+  ]
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      signatureCache = await loadImage(fs.readFileSync(p))
+      return signatureCache
+    }
+  }
+  return null
+}
+
 async function loadPhoto(photoUrl) {
   if (!photoUrl) return null
+  await initCanvas()
   try {
     if (photoUrl.startsWith('data:image')) {
       const base64 = photoUrl.split(',')[1]
       return await loadImage(Buffer.from(base64, 'base64'))
+    }
+    // Check if it's stored in the local uploads directory
+    if (photoUrl.includes('/uploads/')) {
+      const relPath = photoUrl.split('/uploads/')[1]
+      const localUpload = path.resolve(__dirname, '../uploads', relPath)
+      if (fs.existsSync(localUpload)) {
+        return await loadImage(fs.readFileSync(localUpload))
+      }
     }
     if (/^https?:\/\//i.test(photoUrl)) {
       const res = await fetch(photoUrl)
@@ -253,7 +296,6 @@ async function drawFront(ctx, member, logo, photo) {
   const rows = []
   if (state) rows.push({ text: String(state).toUpperCase(), tag: 'STATE' })
   if (district) rows.push({ text: String(district).toUpperCase(), tag: 'DIST' })
-  if (assembly) rows.push({ text: titleCase(assembly), tag: 'ASSM' })
   const zoneText = zone ? String(zone).toUpperCase() : ''
 
   const PHOTO_W = 137
@@ -378,7 +420,7 @@ async function drawFront(ctx, member, logo, photo) {
 
 // ---------- BACK ----------
 
-async function drawBack(ctx, member, logo, qrImage) {
+async function drawBack(ctx, member, logo, qrImage, signature) {
   const {
     dob = '',
     age = '',
@@ -484,9 +526,13 @@ async function drawBack(ctx, member, logo, qrImage) {
 
   // Signature + authority (right block, centered at x ≈ 236)
   const sxc = CARD_W - 24 - 80
-  drawSvgPath(ctx, 'M10 28 C 30 10, 45 35, 60 15 C 75 -2, 85 38, 95 18 C 105 2, 110 25, 125 15 C 135 10, 145 28, 155 20 M20 22 L140 22', {
-    stroke: NAVY, lineWidth: 2.2, viewW: 160, viewH: 40, x: sxc - 65, y: qy + 4, w: 130, h: 36,
-  })
+  if (signature) {
+    drawContain(ctx, signature, sxc - 65, qy + 4, 130, 36)
+  } else {
+    drawSvgPath(ctx, 'M10 28 C 30 10, 45 35, 60 15 C 75 -2, 85 38, 95 18 C 105 2, 110 25, 125 15 C 135 10, 145 28, 155 20 M20 22 L140 22', {
+      stroke: NAVY, lineWidth: 2.2, viewW: 160, viewH: 40, x: sxc - 65, y: qy + 4, w: 130, h: 36,
+    })
+  }
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
   ctx.fillStyle = NAVY
@@ -494,7 +540,10 @@ async function drawBack(ctx, member, logo, qrImage) {
   ctx.fillText('VISANATH SHETTY', sxc, qy + 44)
   ctx.fillStyle = SLATE_600
   ctx.font = font(9, 'bold')
-  ctx.fillText('Founder & State / National President', sxc, qy + 59)
+  const presidentRole = (!member.presidentRole || member.presidentRole.includes('Founder') || member.presidentRole.includes('State'))
+    ? 'National President'
+    : member.presidentRole
+  ctx.fillText(presidentRole, sxc, qy + 59)
   ctx.fillStyle = SLATE_500
   ctx.font = font(8, 'normal')
   ctx.fillText('Tamilnadu & National Sports Campaign', sxc, qy + 71)
@@ -526,8 +575,10 @@ async function drawBack(ctx, member, logo, qrImage) {
  * @returns {{ front: Buffer, back: Buffer, combined: Buffer }}
  */
 export async function renderMemberCard(member) {
-  ensureFonts()
+  await initCanvas()
+  await ensureFonts()
   const logo = await getLogo()
+  const signature = await getSignature()
   const photo = await loadPhoto(member.photoUrl || member.photo)
   const qrBuffer = await QRCode.toBuffer(`${SITE_URL}/membership-card?id=${encodeURIComponent(member.memberId || 'ISYDCI-MEMBER')}`, {
     width: 300,
@@ -544,7 +595,7 @@ export async function renderMemberCard(member) {
   const backCanvas = createCanvas(CARD_W * SCALE, CARD_H * SCALE)
   const bctx = backCanvas.getContext('2d')
   bctx.scale(SCALE, SCALE)
-  await drawBack(bctx, member, logo, qrImage)
+  await drawBack(bctx, member, logo, qrImage, signature)
 
   const GAP = 28
   const PAD = 24
@@ -568,21 +619,30 @@ export function cloudinaryFolderFor(member) {
 }
 
 /**
- * Render the combined Front+Back card and upload it to Cloudinary.
- * Returns the secure URL (or '' on failure). Never throws.
+ * Render the Front, Back and Combined cards.
+ * Saves to local disk (/uploads) on DigitalOcean or uploads to Cloudinary based on STORAGE_DRIVER.
+ * Returns { cardFullUrl, cardFrontUrl, cardBackUrl } (or null on failure).
  */
 export async function generateAndUploadCard(member) {
   try {
     const started = Date.now()
-    const { combined } = await renderMemberCard(member)
+    const { front, back, combined } = await renderMemberCard(member)
+    const driver = process.env.STORAGE_DRIVER || (process.env.CLOUDINARY_API_KEY ? 'cloudinary' : 'local')
+
+    if (driver === 'local' || driver === 'digitalocean') {
+      const urls = saveMemberCardFiles(member, { front, back, combined })
+      console.log(`🪪 [CARD SAVED (DO/LOCAL)] ${member.memberId} (${member.name}) -> ${urls.cardFullUrl} [${Date.now() - started}ms]`)
+      return urls
+    }
+
     const dataUri = `data:image/png;base64,${combined.toString('base64')}`
     const folder = cloudinaryFolderFor(member)
     const upload = await uploadToCloudinary(dataUri, folder, 'id_card_full')
     const url = upload?.secure_url && upload.secure_url.startsWith('http') ? upload.secure_url : ''
-    console.log(`🪪 [CARD RENDERED] ${member.memberId} (${member.name}) -> ${url || 'UPLOAD FAILED'} [${Date.now() - started}ms, ${(combined.length / 1024).toFixed(0)} KB]`)
-    return url
+    console.log(`🪪 [CARD RENDERED (CLOUDINARY)] ${member.memberId} (${member.name}) -> ${url || 'UPLOAD FAILED'} [${Date.now() - started}ms, ${(combined.length / 1024).toFixed(0)} KB]`)
+    return { cardFullUrl: url }
   } catch (err) {
     console.error('[CardRenderer] generateAndUploadCard failed:', err.message)
-    return ''
+    return null
   }
 }

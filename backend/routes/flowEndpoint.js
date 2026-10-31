@@ -13,6 +13,8 @@ import { saveMember, findMemberByPhone, phoneKey } from '../db/db.js'
 import { decryptFlowMedia, toDataUri } from '../services/flowMedia.js'
 import { uploadToCloudinary } from '../config/cloudinary.js'
 import { generateAndUploadCard, cloudinaryFolderFor, SITE_URL } from '../services/cardRenderer.js'
+import { trackFlowStep, onMemberRegistered } from '../services/leads.js'
+import { recordEvent } from '../services/audit.js'
 
 const router = express.Router()
 
@@ -157,7 +159,7 @@ function memberCardData(member) {
 export async function registerFromFlow(fields, senderPhone) {
   // The WhatsApp sender number (flow_token) is authoritative; the form never asks for it
   const contactDigits = phoneKey(senderPhone || fields.contact_number)
-  const existing = findMemberByPhone(contactDigits)
+  const existing = await findMemberByPhone(contactDigits)
   const memberId = existing?.memberId || `ISYDCI-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
 
   const record = {
@@ -183,7 +185,7 @@ export async function registerFromFlow(fields, senderPhone) {
   }
   record.cloudinaryFolder = record.cloudinaryFolder || cloudinaryFolderFor(record)
 
-  let saved = saveMember(record)
+  let saved = await saveMember(record)
   console.log(`   💾 ${existing ? 'MEMBER UPDATED' : 'NEW MEMBER SAVED'} -> backend/data/members.json`)
   console.log(`   👤 Athlete:       ${saved.name}`)
   console.log(`   🆔 Member ID:     ${saved.memberId}`)
@@ -194,13 +196,21 @@ export async function registerFromFlow(fields, senderPhone) {
   console.log(`   📷 Photo:         ${saved.photoUrl}`)
 
   console.log(`   🪪 Rendering Front & Back membership card...`)
-  const cardUrl = await withTimeout(generateAndUploadCard(saved), 8000, '')
+  const cardRes = await withTimeout(generateAndUploadCard(saved), 8000, null)
+  const cardUrl = cardRes?.cardFullUrl || (typeof cardRes === 'string' ? cardRes : '')
   if (cardUrl) {
-    saved = saveMember({ ...saved, cardFullUrl: cardUrl })
+    saved = await saveMember({
+      ...saved,
+      cardFullUrl: cardUrl,
+      cardFrontUrl: cardRes?.cardFrontUrl || saved.cardFrontUrl,
+      cardBackUrl: cardRes?.cardBackUrl || saved.cardBackUrl,
+      cardDesignVersion: 3,
+    })
     console.log(`   ☁️  Card URL:      ${cardUrl}`)
   } else {
     console.log(`   ⏳ Card image not ready yet — it will be generated when the card is sent on WhatsApp.`)
   }
+  onMemberRegistered(saved, 'whatsapp_flow').catch(() => {})
   return saved
 }
 
@@ -260,6 +270,7 @@ router.post('/', async (req, res) => {
     if (Object.keys(logData).length) console.log(`   📦 Payload:       ${JSON.stringify(logData)}`)
 
     let response
+    if (action !== 'ping') recordEvent('flow', `${action} ${screen || 'INIT'} from +${senderPhone}`, logData).catch(() => {})
 
     if (action === 'ping') {
       response = { data: { status: 'active' } }
@@ -267,7 +278,7 @@ router.post('/', async (req, res) => {
 
     // -------------------------------------------------- INIT: decide first screen
     else if (action === 'INIT') {
-      const member = findMemberByPhone(senderPhone)
+      const member = await findMemberByPhone(senderPhone)
       if (member) {
         console.log(`   👤 Identity:      REGISTERED ATHLETE ✅  ${member.name} (${member.memberId})`)
         console.log(`   ➡️  Open screen:   [${SCREENS.CARD}]`)
@@ -297,9 +308,9 @@ router.post('/', async (req, res) => {
         carry.zone = clean(data.zone, 60)
         if (carry.full_name.length < 3) response = errorResponse(screen, carry, 'Please enter your full name (minimum 3 letters).')
         else if (!carry.state) response = errorResponse(screen, carry, 'Please select your State / Union Territory.')
-        else if (!carry.district || !carry.assembly || !carry.zone) response = errorResponse(screen, carry, 'District, Assembly and Zone are required.')
+        else if (!carry.district || !carry.zone) response = errorResponse(screen, carry, 'District and Zone are required.')
         else {
-          console.log(`   ✅ Step 1 of 4:   Name "${carry.full_name}" | ${carry.state} / ${carry.district} / ${carry.assembly} / ${carry.zone}`)
+          console.log(`   ✅ Step 1 of 4:   Name "${carry.full_name}" | ${carry.state} / ${carry.district} / ${carry.zone}`)
           console.log(`   ➡️  Next screen:   [${SCREENS.DOB}] Step 2 of 4`)
           response = screenResponse(SCREENS.DOB, carry)
         }
@@ -333,10 +344,17 @@ router.post('/', async (req, res) => {
             console.log(`   📷 Photo upload:  ${photos[0].file_name || 'photo'} (media_id ${photos[0].media_id || '-'}) — decrypting from Meta CDN...`)
             const { buffer, mimeType } = await decryptFlowMedia(photos[0])
             console.log(`   🔓 Decrypted:     ${(buffer.length / 1024).toFixed(0)} KB ${mimeType}`)
-            const folder = cloudinaryFolderFor({ name: carry.full_name })
-            const upload = await uploadToCloudinary(toDataUri(buffer, mimeType), folder, 'profile_photo')
-            carry.photo_url = upload?.secure_url?.startsWith('http') ? upload.secure_url : ''
-            console.log(`   ☁️  Cloudinary:    ${carry.photo_url || 'upload failed (will retry on submit)'}`)
+            const driver = process.env.STORAGE_DRIVER || (process.env.CLOUDINARY_API_KEY ? 'cloudinary' : 'local')
+            if (driver === 'local' || driver === 'digitalocean') {
+              const { saveMemberPhoto } = await import('../services/storage.js')
+              carry.photo_url = saveMemberPhoto({ name: carry.full_name }, buffer, mimeType.includes('png') ? 'png' : 'jpg')
+              console.log(`   💾 Saved photo locally: ${carry.photo_url}`)
+            } else {
+              const folder = cloudinaryFolderFor({ name: carry.full_name })
+              const upload = await uploadToCloudinary(toDataUri(buffer, mimeType), folder, 'profile_photo')
+              carry.photo_url = upload?.secure_url?.startsWith('http') ? upload.secure_url : ''
+              console.log(`   ☁️  Cloudinary:    ${carry.photo_url || 'upload failed (will retry on submit)'}`)
+            }
             const preview = await makePhotoPreview(buffer)
             console.log(`   ✅ Step 3 of 4:   Blood ${carry.blood_group} | Address "${carry.address}" | Photo OK`)
             console.log(`   ➡️  Next screen:   [${SCREENS.CONFIRM}] Step 4 of 4 (review & submit)`)
@@ -393,6 +411,10 @@ router.post('/', async (req, res) => {
     else {
       console.log(`   ⚠️  Unknown action [${action}]`)
       response = screenResponse(SCREENS.LOCATION, { ...carryFrom(), contact_number: formatPhoneDisplay(senderPhone) })
+    }
+
+    if (action === 'INIT' || action === 'data_exchange') {
+      trackFlowStep(senderPhone, { action, screen, nextScreen: response.screen, data: carryFrom(data), hasError: Boolean(response.data?.has_error) }).catch(() => {})
     }
 
     const encrypted = encryptFlowResponse(response, aesKey, iv)

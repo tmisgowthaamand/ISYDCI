@@ -120,16 +120,6 @@ export const CardFront = forwardRef(function CardFront({ member, className = '' 
             </div>
           ) : null}
 
-          {/* Assembly (Title Case) */}
-          {assembly ? (
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800 leading-tight">
-              <span className="capitalize">{assembly.toLowerCase().replace(/(?:^|\s|-|\/)\S/g, m => m.toUpperCase())}</span>
-              <span className="bg-[#0b1e3f] text-white text-[8.5px] font-extrabold px-1.5 py-0.2 rounded tracking-wide uppercase">
-                ASSM
-              </span>
-            </div>
-          ) : null}
-
           {/* Zone (Capital Case) */}
           {zone ? (
             <div className="text-[10px] font-extrabold text-slate-900 tracking-wider uppercase leading-tight">
@@ -194,10 +184,15 @@ export const CardBack = forwardRef(function CardBack({ member, className = '' },
     contact = '',
     memberId = '',
     presidentName = 'VISANATH SHETTY',
-    presidentRole = 'Founder & State / National President',
+    presidentRole: rawPresidentRole,
+    signatureUrl = '/signature.png',
     orgName = 'Tamilnadu & National Sports Campaign',
     disclaimer = '"This card is the property of International Sports & Youth Development Campaign of India. If found, please return it to the provided address."',
   } = member || {}
+
+  const presidentRole = (!rawPresidentRole || rawPresidentRole.includes('Founder') || rawPresidentRole.includes('State'))
+    ? 'National President'
+    : rawPresidentRole
 
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('')
 
@@ -335,9 +330,21 @@ export const CardBack = forwardRef(function CardBack({ member, className = '' },
 
           {/* Signature & Authority */}
           <div className="flex flex-col items-center text-center max-w-[160px]">
-            {/* Elegant Signature Drawing SVG */}
-            <div className="h-[36px] w-[130px] flex items-center justify-center mb-0.5">
-              <svg viewBox="0 0 160 40" className="w-full h-full text-[#0b1e3f] stroke-current" fill="none">
+            {/* Official Signature */}
+            <div className="h-[38px] w-[130px] flex items-center justify-center mb-0.5">
+              <img
+                src={signatureUrl || '/signature.png'}
+                alt="President Signature"
+                className="max-h-full max-w-full object-contain"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                  if (e.currentTarget.nextElementSibling) {
+                    e.currentTarget.nextElementSibling.style.display = 'block'
+                  }
+                }}
+              />
+              <svg viewBox="0 0 160 40" className="w-full h-full text-[#0b1e3f] stroke-current hidden" fill="none">
                 <path
                   d="M10 28 C 30 10, 45 35, 60 15 C 75 -2, 85 38, 95 18 C 105 2, 110 25, 125 15 C 135 10, 145 28, 155 20 M20 22 L140 22"
                   strokeWidth="2.2"
@@ -384,7 +391,7 @@ export default function MembershipCard({
       {/* 3D Flip Card Container with responsive scale on narrow mobile devices */}
       <div className="w-full flex justify-center py-1 overflow-x-hidden">
         <div
-          className="w-[340px] h-[540px] shrink-0 cursor-pointer group select-none origin-top max-[365px]:scale-[0.88] max-[385px]:scale-[0.94] transition-transform"
+          className="w-[340px] h-[540px] shrink-0 cursor-pointer group select-none origin-top max-[300px]:scale-[0.72] max-[335px]:scale-[0.78] max-[365px]:scale-[0.86] max-[395px]:scale-[0.92] transition-transform"
           onClick={onFlip}
           title="Click to flip card"
           style={{ perspective: '1200px' }}

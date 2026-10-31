@@ -1,87 +1,90 @@
 import { Router } from 'express'
-import dotenv from 'dotenv'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
-dotenv.config({ path: path.resolve(__dirname, '../../.env') })
+import { authenticate, requireAuth, listAdmins, createAdmin, updateAdmin, deleteAdmin, ROLES, ROLE_LABEL } from '../services/auth.js'
+import { logAudit } from '../services/audit.js'
 
 const router = Router()
 
-// POST /api/auth/login — Authenticate Admin via .env credentials
-router.post('/login', (req, res) => {
+// POST /api/auth/login — both roles use the same login; the account's role decides what the panel shows
+router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body
-
-    const validUsername = process.env.ADMIN_USERNAME
-    const validPassword = process.env.ADMIN_PASSWORD
-
-    if (!validUsername || !validPassword) {
-      console.error('[Auth Error]: ADMIN_USERNAME or ADMIN_PASSWORD not configured in .env')
-      return res.status(500).json({
-        success: false,
-        message: 'Admin credentials not configured in server environment (.env)',
-      })
-    }
-
+    const { username, password } = req.body || {}
     if (!username || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Username and password are required',
-      })
+      return res.status(400).json({ success: false, message: 'Username and password are required' })
     }
-
-    if (username.trim() === validUsername && password === validPassword) {
-      // Generate secure session token
-      const token = `isydci_adm_${Buffer.from(`${validUsername}:${Date.now()}:${Math.random()}`).toString('base64')}`
-      
-      console.log(`[Admin Login Success] Username: ${username} at ${new Date().toISOString()}`)
-
-      return res.json({
-        success: true,
-        message: 'Login successful',
-        token,
-        user: {
-          username: validUsername,
-          role: 'Administrator',
-          loginTime: new Date().toISOString(),
-        },
-      })
-    } else {
+    const result = await authenticate(username, password)
+    if (!result) {
       console.warn(`[Admin Login Failed] Invalid attempt for username: ${username}`)
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid username or password',
-      })
+      await logAudit({ actor: String(username).slice(0, 40), role: '-', action: 'LOGIN_FAILED', ip: req.ip })
+      return res.status(401).json({ success: false, message: 'Invalid username or password' })
     }
+    const { admin, token } = result
+    console.log(`[Admin Login Success] ${admin.username} (${admin.role}) at ${new Date().toISOString()}`)
+    await logAudit({ actor: admin.username, role: admin.role, action: 'LOGIN', ip: req.ip })
+    return res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: admin.id,
+        username: admin.username,
+        displayName: admin.displayName,
+        role: admin.role,
+        roleLabel: ROLE_LABEL[admin.role],
+        isDeveloper: admin.role === ROLES.SUPER_SUPER_ADMIN,
+        loginTime: new Date().toISOString(),
+      },
+    })
   } catch (error) {
     console.error('[Auth Login Exception]:', error)
-    return res.status(500).json({ success: false, message: error.message })
+    return res.status(500).json({ success: false, message: 'Login failed: ' + error.message })
   }
 })
 
-// GET /api/auth/verify — Verify current token / session
-router.get('/verify', (req, res) => {
-  const authHeader = req.headers.authorization
-  if (authHeader && authHeader.startsWith('Bearer isydci_adm_')) {
-    return res.json({
-      success: true,
-      authenticated: true,
-      user: {
-        username: process.env.ADMIN_USERNAME || 'admin',
-        role: 'Administrator',
-      },
-    })
-  }
-
-  return res.status(401).json({
-    success: false,
-    authenticated: false,
-    message: 'Invalid or expired session token',
+// GET /api/auth/me — validates the stored token and returns the role (used by the admin layout guard)
+router.get('/me', requireAuth(), (req, res) => {
+  res.json({
+    success: true,
+    user: {
+      id: req.admin.sub,
+      username: req.admin.username,
+      role: req.admin.role,
+      roleLabel: ROLE_LABEL[req.admin.role],
+      isDeveloper: req.admin.role === ROLES.SUPER_SUPER_ADMIN,
+      expiresAt: new Date(req.admin.exp * 1000).toISOString(),
+    },
   })
+})
+
+// ---------------------------------------------------------------- admin accounts (developer only)
+router.get('/admins', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (_req, res) => {
+  res.json({ success: true, admins: await listAdmins(), roles: ROLE_LABEL })
+})
+
+router.post('/admins', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (req, res) => {
+  try {
+    const admin = await createAdmin({ ...req.body, createdBy: req.admin.username })
+    res.status(201).json({ success: true, admin })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
+})
+
+router.patch('/admins/:id', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (req, res) => {
+  try {
+    const admin = await updateAdmin(req.params.id, req.body || {}, req.admin)
+    res.json({ success: true, admin })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
+})
+
+router.delete('/admins/:id', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (req, res) => {
+  try {
+    await deleteAdmin(req.params.id, req.admin)
+    res.json({ success: true })
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message })
+  }
 })
 
 export default router

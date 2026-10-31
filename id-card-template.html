@@ -1045,12 +1045,8 @@
           </div>
         </div>
 
-        <!-- Assembly & Zone -->
+        <!-- Zone -->
         <div class="form-row">
-          <div class="form-group">
-            <label>Assembly (ASSM)</label>
-            <input type="text" id="input-assembly" class="form-input titlecase-input" placeholder="e.g. Thiyagarayanagar" value="" oninput="updateCard()">
-          </div>
           <div class="form-group">
             <label>Zone / Region</label>
             <input type="text" id="input-zone" class="form-input uppercase-input" placeholder="e.g. CHENNAI ZONE" value="" oninput="updateCard()">
@@ -1172,11 +1168,6 @@
                 <span class="pill-tag">DIST</span>
               </div>
 
-              <div class="badge-row" id="row-assembly">
-                <span id="display-assembly"></span>
-                <span class="pill-tag">ASSM</span>
-              </div>
-
               <div id="display-zone" class="zone-text"></div>
 
               <div id="display-card-id" class="card-id-box"></div>
@@ -1287,11 +1278,9 @@
               </div>
 
               <div class="signature-wrap">
-                <svg class="signature-svg" viewBox="0 0 160 40" fill="none">
-                  <path d="M10 28 C 30 10, 45 35, 60 15 C 75 -2, 85 38, 95 18 C 105 2, 110 25, 125 15 C 135 10, 145 28, 155 20 M20 22 L140 22" stroke="#0b1e3f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
+                <img src="/signature.png" alt="Signature" class="signature-img" style="height: 38px; max-width: 130px; object-fit: contain; margin-bottom: 2px;">
                 <div class="signatory-name">VISANATH SHETTY</div>
-                <div class="signatory-title">Founder & National President</div>
+                <div class="signatory-title">National President</div>
                 <div class="signatory-org">International Sports & Youth Development Campaign</div>
               </div>
             </div>
@@ -1365,11 +1354,11 @@
     }
 
     function updateCard() {
-      // Location & Member details (State, District, Assembly, Zone)
+      // Location & Member details (State, District, Zone)
       const name = document.getElementById('input-name').value.trim();
       const state = document.getElementById('input-state').value.trim();
       const district = document.getElementById('input-district').value.trim();
-      const assembly = document.getElementById('input-assembly').value.trim();
+      const assembly = document.getElementById('input-assembly') ? document.getElementById('input-assembly').value.trim() : '';
       const zone = document.getElementById('input-zone').value.trim();
 
       // Back details (No placeholder dash lines!)
@@ -1391,7 +1380,9 @@
       document.getElementById('display-name').textContent = name ? name.toUpperCase() : '';
       document.getElementById('display-state').textContent = state ? state.toUpperCase() : '';
       document.getElementById('display-district').textContent = district ? district.toUpperCase() : '';
-      document.getElementById('display-assembly').textContent = assembly ? toTitleCase(assembly) : '';
+      if (document.getElementById('display-assembly')) {
+        document.getElementById('display-assembly').textContent = assembly ? toTitleCase(assembly) : '';
+      }
       document.getElementById('display-zone').textContent = zone ? zone.toUpperCase() : '';
       document.getElementById('display-card-id').textContent = autoMemberCardId;
 
@@ -1700,7 +1691,7 @@
       document.getElementById('input-name').value = 'LAKSHAN KARTHIK';
       document.getElementById('input-state').value = 'TAMIL NADU';
       document.getElementById('input-district').value = 'CHENNAI';
-      document.getElementById('input-assembly').value = 'Thiyagarayanagar';
+      if (document.getElementById('input-assembly')) document.getElementById('input-assembly').value = 'Thiyagarayanagar';
       document.getElementById('input-zone').value = 'CHENNAI ZONE';
       document.getElementById('input-dob').value = '05 Sep 1994';
       document.getElementById('input-age').value = '32';
@@ -1721,7 +1712,7 @@
       document.getElementById('input-name').value = '';
       document.getElementById('input-state').value = '';
       document.getElementById('input-district').value = '';
-      document.getElementById('input-assembly').value = '';
+      if (document.getElementById('input-assembly')) document.getElementById('input-assembly').value = '';
       document.getElementById('input-zone').value = '';
       document.getElementById('input-dob').value = '';
       document.getElementById('input-age').value = '';
@@ -1774,7 +1765,7 @@
           cardBackImage: backPng,
           state: document.getElementById('input-state').value.trim() || 'TAMIL NADU',
           district: document.getElementById('input-district').value.trim(),
-          assembly: document.getElementById('input-assembly').value.trim(),
+          assembly: document.getElementById('input-assembly') ? document.getElementById('input-assembly').value.trim() : '',
           zone: document.getElementById('input-zone').value.trim(),
           dob: document.getElementById('input-dob').value.trim(),
           age: document.getElementById('input-age').value.trim(),

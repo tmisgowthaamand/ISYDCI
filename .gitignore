@@ -26,4 +26,6 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 *.timestamp-*.mjs
+backend/uploads/
+scratch/
 

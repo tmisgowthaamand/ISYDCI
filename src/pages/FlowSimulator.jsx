@@ -4,7 +4,7 @@ import { CardFront, CardBack } from '../components/MembershipCard.jsx'
 import isydciFlowData from '../data/isydci_flow_v1.json'
 import isydciLabels from '../data/isydci.labels.json'
 import PhotoCropModal from '../components/PhotoCropModal.jsx'
-import { API_BASE_URL } from '../config/api.js'
+import { API_BASE_URL, apiFetch } from '../config/api.js'
 
 const indianStatesAndUTs = [
   'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam',
@@ -71,7 +71,7 @@ export default function FlowSimulator() {
     if (step === 1) {
       if (!(d.name || '').trim() || d.name.trim().length < 3) return 'Please enter your full name (minimum 3 letters).'
       if (!d.state) return 'Please select your State / Union Territory.'
-      if (!(d.district || '').trim() || !(d.assembly || '').trim() || !(d.zone || '').trim()) return 'District, Assembly and Zone are required.'
+      if (!(d.district || '').trim() || !(d.zone || '').trim()) return 'District and Zone are required.'
     }
     if (step === 2) {
       if (!(d.dob || '').trim()) return 'Please enter your date of birth.'
@@ -398,7 +398,7 @@ export default function FlowSimulator() {
 
   // Fetch all registered members on mount & handle URL query params (?id=... or ?phone=...)
   useEffect(() => {
-    fetch(`${apiBaseUrl}/api/members`)
+    apiFetch(`${apiBaseUrl}/api/members`)
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d && d.success && Array.isArray(d.members)) {
@@ -457,7 +457,7 @@ export default function FlowSimulator() {
     
     if (!isExplicitlyUnregistered && cleanPhone) {
       try {
-        const res = await fetch(`${apiBaseUrl}/api/members/phone/${encodeURIComponent(cleanPhone)}`)
+        const res = await apiFetch(`${apiBaseUrl}/api/members/phone/${encodeURIComponent(cleanPhone)}`)
         if (res.ok) {
           const data = await res.json()
           if (data.success && data.member) {
@@ -601,7 +601,7 @@ export default function FlowSimulator() {
 
     let member = null
     try {
-      const r = await fetch(`${apiBaseUrl}/api/members`, {
+      const r = await apiFetch(`${apiBaseUrl}/api/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Client': 'flow-simulator' },
         body: JSON.stringify(draft)
@@ -759,7 +759,7 @@ export default function FlowSimulator() {
   // Check backend health on mount and poll periodically
   const checkBackendHealth = async () => {
     try {
-      const res = await fetch(`${apiBaseUrl}/api/health`, {
+      const res = await apiFetch(`${apiBaseUrl}/api/health`, {
         cache: 'no-store',
         headers: { 'X-Client': 'flow-simulator' }
       })
@@ -771,7 +771,7 @@ export default function FlowSimulator() {
 
     // Fallback check: if backend is running on port 5000
     try {
-      const res2 = await fetch(`${apiBaseUrl}/api/members`, { cache: 'no-store' })
+      const res2 = await apiFetch(`${apiBaseUrl}/api/members`, { cache: 'no-store' })
       if (res2.ok) {
         setBackendStatus('online')
         return
@@ -789,7 +789,7 @@ export default function FlowSimulator() {
 
   // Helper to print flow clicks and errors directly to the backend terminal
   const logToTerminal = (logData) => {
-    fetch(`${apiBaseUrl}/api/flow-log`, {
+    apiFetch(`${apiBaseUrl}/api/flow-log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(logData)
@@ -881,7 +881,7 @@ export default function FlowSimulator() {
       let memberObj = selectedUser
       const cleanPhone = (selectedUser.phone || selectedUser.contact || '').replace(/\D/g, '')
       const fetchPromise = cleanPhone
-        ? fetch(`${apiBaseUrl}/api/members/phone/${encodeURIComponent(cleanPhone)}`)
+        ? apiFetch(`${apiBaseUrl}/api/members/phone/${encodeURIComponent(cleanPhone)}`)
             .then(r => r.ok ? r.json() : null)
             .then(d => {
               if (d && d.success && d.member) {
@@ -957,7 +957,7 @@ export default function FlowSimulator() {
       }
 
       // Save to localhost:5000 /api/members
-      fetch(`${apiBaseUrl}/api/members`, {
+      apiFetch(`${apiBaseUrl}/api/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Client': 'flow-simulator' },
         body: JSON.stringify(newMember)
@@ -974,7 +974,7 @@ export default function FlowSimulator() {
       newMsgs.push({
         id: `backend-${Date.now()}`,
         type: 'backend',
-        text: `🎉 *Athlete Registration Confirmed & ID Issued!*\n\n👤 Athlete: ${newMember.name}\n🆔 Member ID: ${newMember.memberId}\n📍 State: ${newMember.state} | ${newMember.district}\n🏛️ Assembly: ${newMember.assembly} | ${newMember.zone}\n🩸 Blood Group: ${newMember.bloodGroup} | Age: ${newMember.age}\n🏠 Address: ${newMember.address}\n🪪 Council Accreditation: Verified (Reg No: 49/1997)\n\nOfficial Front & Back ID Card generated below:`,
+        text: `🎉 *Athlete Registration Confirmed & ID Issued!*\n\n👤 Athlete: ${newMember.name}\n🆔 Member ID: ${newMember.memberId}\n📍 State: ${newMember.state} | ${newMember.district}\n📍 Zone: ${newMember.zone}\n🩸 Blood Group: ${newMember.bloodGroup} | Age: ${newMember.age}\n🏠 Address: ${newMember.address}\n🪪 Council Accreditation: Verified (Reg No: 49/1997)\n\nOfficial Front & Back ID Card generated below:`,
         time: timeStr
       })
 
@@ -1540,7 +1540,7 @@ export default function FlowSimulator() {
 
         <button
           onClick={handleExportJson}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-600/25 transition-all cursor-pointer ml-auto"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-600/25 transition-all cursor-pointer sm:ml-auto"
         >
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1559,7 +1559,7 @@ export default function FlowSimulator() {
             ------------------------------------------------------------ */}
         <div className="lg:col-span-5 flex flex-col items-center space-y-3">
           {/* Phone Shell */}
-          <div className="w-full max-w-[360px] h-[640px] bg-slate-900 rounded-[44px] p-2.5 shadow-2xl ring-1 ring-slate-800/80 relative flex flex-col overflow-hidden">
+          <div className="w-full max-w-[360px] max-[360px]:max-w-[315px] h-[580px] sm:h-[640px] bg-slate-900 rounded-[38px] sm:rounded-[44px] p-2 sm:p-2.5 shadow-2xl ring-1 ring-slate-800/80 relative flex flex-col overflow-hidden">
             
             {/* Front Camera Notch */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-950 rounded-full z-30 flex items-center justify-center gap-2">
@@ -1719,7 +1719,7 @@ export default function FlowSimulator() {
                           <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] space-y-0.5">
                             <div>👤 Athlete: <strong className="text-slate-900">{m.name}</strong></div>
                             <div>🆔 ID: <strong className="font-mono text-teal-800">{m.memberId}</strong></div>
-                            <div>📍 State: <strong>{m.state || 'TAMIL NADU'}</strong> • {m.district || m.assembly || 'TRICHY'}</div>
+                            <div>📍 State: <strong>{m.state || 'TAMIL NADU'}</strong> • {m.district || 'TRICHY'}</div>
                             <div className="text-emerald-700 font-bold">✓ Verified Athlete (Reg: 49/1997)</div>
                           </div>
                           <div className="text-[9px] text-slate-400 text-right mt-1">
@@ -2090,7 +2090,7 @@ export default function FlowSimulator() {
                               </div>
                               <div className="text-slate-600 flex items-center justify-between text-[9px] pt-1 border-t border-slate-200/60">
                                 <span>📍 {registrationDraft.state || 'TAMIL NADU'} &bull; {registrationDraft.district || 'CHENNAI'}</span>
-                                <span>🏛️ {registrationDraft.assembly || 'Velachery'}</span>
+                                <span>📍 {registrationDraft.zone || 'Ward 25'}</span>
                               </div>
                             </div>
 
@@ -2582,21 +2582,6 @@ export default function FlowSimulator() {
                         </div>
                       </div>
 
-                      {/* Assembly / Constituency */}
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-700">Assembly / Constituency <span className="text-rose-500">*</span></label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={registrationDraft.assembly}
-                            onChange={(e) => setRegistrationDraft(prev => ({ ...prev, assembly: e.target.value }))}
-                            placeholder="e.g. Velachery"
-                            className="w-full px-3 py-2 pl-8 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-teal-600 outline-none transition-all"
-                          />
-                          <span className="absolute left-2.5 top-2.5 text-slate-400 text-xs">📍</span>
-                        </div>
-                      </div>
-
                       {/* Zone / Ward / Area */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-700">Zone / Ward / Area <span className="text-rose-500">*</span></label>
@@ -2833,10 +2818,6 @@ export default function FlowSimulator() {
                         <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
                           <span className="text-slate-500 font-medium flex items-center gap-1">📍 District</span>
                           <span className="font-semibold text-slate-800">{registrationDraft.district || 'Chennai'}</span>
-                        </div>
-                        <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
-                          <span className="text-slate-500 font-medium flex items-center gap-1">📍 Assembly</span>
-                          <span className="font-semibold text-slate-800">{registrationDraft.assembly || 'Velachery'}</span>
                         </div>
                         <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
                           <span className="text-slate-500 font-medium flex items-center gap-1">📍 Zone</span>

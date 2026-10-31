@@ -26,7 +26,7 @@ export default function AdminLogin() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: username.trim(),
-          password,
+          password: password.trim(),
         }),
       })
 
@@ -38,30 +38,19 @@ export default function AdminLogin() {
           JSON.stringify({
             token: data.token,
             user: data.user?.username || username.trim(),
-            role: data.user?.role || 'Administrator',
+            role: data.user?.role || 'super_admin',
+            roleLabel: data.user?.roleLabel || 'Super Admin',
+            isDeveloper: Boolean(data.user?.isDeveloper),
+            displayName: data.user?.displayName || data.user?.username || username.trim(),
             loginTime: new Date().toISOString(),
           })
         )
         navigate('/admin/dashboard')
       } else {
-        setError(data.message || 'Invalid username or password')
+        setError(data.message || 'Invalid username or password. Check backend .env credentials.')
       }
     } catch {
-      // Offline fallback
-      if (username.trim() === 'admin' && password === 'admin@123') {
-        localStorage.setItem(
-          'isydci_admin_auth',
-          JSON.stringify({
-            token: 'offline_token_' + Date.now(),
-            user: 'admin',
-            role: 'Administrator',
-            loginTime: new Date().toISOString(),
-          })
-        )
-        navigate('/admin/dashboard')
-      } else {
-        setError('Invalid username or password. Please verify your credentials.')
-      }
+      setError('Unable to reach backend server. Please verify backend is running on ' + API_BASE_URL)
     } finally {
       setLoading(false)
     }

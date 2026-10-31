@@ -40,10 +40,6 @@
           "type": "string",
           "__example__": "Chennai"
         },
-        "assembly": {
-          "type": "string",
-          "__example__": "Velachery"
-        },
         "zone": {
           "type": "string",
           "__example__": "Ward 25"
@@ -283,14 +279,6 @@
               },
               {
                 "type": "TextInput",
-                "name": "assembly",
-                "label": "Assembly / Constituency",
-                "required": true,
-                "input-type": "text",
-                "helper-text": "e.g. Velachery"
-              },
-              {
-                "type": "TextInput",
                 "name": "zone",
                 "label": "Zone / Ward / Area",
                 "required": true,
@@ -308,7 +296,6 @@
                     "contact_number": "${data.contact_number}",
                     "state": "${form.state}",
                     "district": "${form.district}",
-                    "assembly": "${form.assembly}",
                     "zone": "${form.zone}",
                     "dob": "${data.dob}",
                     "dob_display": "${data.dob_display}",
@@ -344,10 +331,6 @@
         "district": {
           "type": "string",
           "__example__": "Chennai"
-        },
-        "assembly": {
-          "type": "string",
-          "__example__": "Velachery"
         },
         "zone": {
           "type": "string",
@@ -432,7 +415,6 @@
                     "contact_number": "${data.contact_number}",
                     "state": "${data.state}",
                     "district": "${data.district}",
-                    "assembly": "${data.assembly}",
                     "zone": "${data.zone}",
                     "dob": "${form.dob}",
                     "dob_display": "${data.dob_display}",
@@ -468,10 +450,6 @@
         "district": {
           "type": "string",
           "__example__": "Chennai"
-        },
-        "assembly": {
-          "type": "string",
-          "__example__": "Velachery"
         },
         "zone": {
           "type": "string",
@@ -606,7 +584,6 @@
                     "contact_number": "${data.contact_number}",
                     "state": "${data.state}",
                     "district": "${data.district}",
-                    "assembly": "${data.assembly}",
                     "zone": "${data.zone}",
                     "dob": "${data.dob}",
                     "dob_display": "${data.dob_display}",
@@ -643,10 +620,6 @@
         "district": {
           "type": "string",
           "__example__": "Chennai"
-        },
-        "assembly": {
-          "type": "string",
-          "__example__": "Velachery"
         },
         "zone": {
           "type": "string",
@@ -731,10 +704,6 @@
           },
           {
             "type": "TextBody",
-            "text": "`'📍 Assembly • ' ${data.assembly}`"
-          },
-          {
-            "type": "TextBody",
             "text": "`'📍 Zone • ' ${data.zone}`"
           },
           {
@@ -778,7 +747,6 @@
                     "contact_number": "${data.contact_number}",
                     "state": "${data.state}",
                     "district": "${data.district}",
-                    "assembly": "${data.assembly}",
                     "zone": "${data.zone}",
                     "dob": "${data.dob}",
                     "dob_display": "${data.dob_display}",
@@ -895,10 +863,6 @@
         "district": {
           "type": "string",
           "__example__": "CHENNAI"
-        },
-        "assembly": {
-          "type": "string",
-          "__example__": "Velachery"
         },
         "dob": {
           "type": "string",

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import MembershipCard, { CardFront, CardBack } from '../components/MembershipCard.jsx'
 import { toPng } from 'html-to-image'
-import { API_BASE_URL } from '../config/api.js'
+import { API_BASE_URL, apiFetch } from '../config/api.js'
 
 export default function AdminManagement() {
   const [members, setMembers] = useState([])
@@ -26,7 +26,7 @@ export default function AdminManagement() {
   const fetchMembers = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`${API_BASE_URL}/api/members`)
+      const res = await apiFetch(`${API_BASE_URL}/api/members`)
       if (res.ok) {
         const data = await res.json()
         if (data.success && Array.isArray(data.members)) {
@@ -63,7 +63,7 @@ export default function AdminManagement() {
 
     // Sync to backend API
     try {
-      await fetch(`${API_BASE_URL}/api/members/${member.id || member.memberId}/status`, {
+      await apiFetch(`${API_BASE_URL}/api/members/${member.id || member.memberId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
@@ -87,7 +87,7 @@ export default function AdminManagement() {
     e.stopPropagation()
     if (!confirm(`Are you sure you want to delete member: ${name}?`)) return
     try {
-      await fetch(`${API_BASE_URL}/api/members/${id}`, { method: 'DELETE' })
+      await apiFetch(`${API_BASE_URL}/api/members/${id}`, { method: 'DELETE' })
       setMembers(prev => prev.filter(m => m.id !== id && m.memberId !== id))
       showNotification(`Deleted member: ${name}`)
     } catch {
@@ -250,12 +250,12 @@ export default function AdminManagement() {
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         {/* Status Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl w-full sm:w-auto">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl overflow-x-auto w-full sm:w-auto">
           {['ALL', 'Verified', 'Pending'].map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 statusFilter === st
                   ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -294,18 +294,19 @@ export default function AdminManagement() {
                 <th className="py-3 px-4">Location</th>
                 <th className="py-3 px-4">Contact Phone</th>
                 <th className="py-3 px-4">Verification Status</th>
-                <th className="py-3 px-4">Joined Date</th>
+                <th className="py-3 px-4">Registered On</th>
+                <th className="py-3 px-4">Registered Via</th>
                 <th className="py-3 px-4 text-right">Admin Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-400">Loading records...</td>
+                  <td colSpan="7" className="py-12 text-center text-slate-400">Loading records...</td>
                 </tr>
               ) : filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-16 text-center">
+                  <td colSpan="7" className="py-16 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 text-blue-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
                       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                         <rect width="18" height="18" x="3" y="3" rx="2" />
@@ -359,7 +360,7 @@ export default function AdminManagement() {
                     </td>
 
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-800 capitalize">{m.assembly || m.district || '—'}</div>
+                      <div className="font-semibold text-slate-800 capitalize">{m.district || m.zone || '—'}</div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">{m.state || 'TAMIL NADU'}</div>
                     </td>
 
@@ -384,12 +385,75 @@ export default function AdminManagement() {
                       </button>
                     </td>
 
+                    {/* Registered On: date + exact time of registration */}
                     <td className="py-3 px-4 text-slate-500 font-medium whitespace-nowrap text-xs">
-                      {m.joinedDate || 'Recent'}
+                      {(() => {
+                        const ts = m.createdAt ? new Date(m.createdAt) : null
+                        if (!ts || isNaN(ts.getTime())) return m.joinedDate || 'Recent'
+                        return (
+                          <div className="leading-tight">
+                            <div className="text-slate-700 font-semibold">
+                              {ts.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              {ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </td>
+
+                    {/* Registered Via: where the registration came from */}
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {m.source === 'whatsapp_flow' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-[#005d4b] text-xs font-bold border border-emerald-200" title="Registered through the WhatsApp registration flow">
+                          <span>💬</span>
+                          <span>WhatsApp Flow</span>
+                        </span>
+                      ) : m.source === 'simulator' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 text-xs font-bold border border-amber-200" title="Registered from the admin Flow Simulator">
+                          <span>🧪</span>
+                          <span>Simulator</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200" title="Registered on the website">
+                          <span>🌐</span>
+                          <span>Web</span>
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
+                        {(() => {
+                          const digits = (m.contact || m.phone || '').replace(/\D/g, '')
+                          const intl = digits.length === 10 ? `91${digits}` : digits
+                          if (!intl) return null
+                          return (
+                            <>
+                              <a
+                                href={`https://wa.me/${intl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#25D366] border border-emerald-200 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                                title={`Chat on WhatsApp: +${intl}`}
+                              >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm0 1.67c2.2 0 4.26.86 5.82 2.42a8.2 8.2 0 012.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.31a8.2 8.2 0 01-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24zm-3.4 4.43c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38 0 1.4 1.02 2.76 1.17 2.95.14.19 1.98 3.03 4.81 4.25 2.35 1.01 2.83.81 3.34.76.51-.05 1.65-.67 1.88-1.33.23-.65.23-1.21.16-1.33-.07-.12-.26-.19-.54-.33-.28-.14-1.65-.81-1.91-.9-.26-.1-.44-.14-.63.14-.19.28-.72.9-.88 1.09-.16.19-.33.21-.6.07-.28-.14-1.18-.43-2.24-1.38-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.12.28-.33.42-.49.14-.16.19-.28.28-.46.09-.19.05-.35-.02-.49-.07-.14-.63-1.51-.86-2.07-.22-.54-.45-.47-.63-.48h-.54z" />
+                                </svg>
+                              </a>
+                              <a
+                                href={`tel:+${intl}`}
+                                className="w-8 h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                                title={`Call +${intl}`}
+                              >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+                                </svg>
+                              </a>
+                            </>
+                          )
+                        })()}
                         <button
                           type="button"
                           onClick={() => openModal(m)}
@@ -493,7 +557,7 @@ export default function AdminManagement() {
                   <div className="flex items-start justify-between">
                     <span className="text-slate-500 font-semibold">Location</span>
                     <span className="font-bold text-slate-800 text-right capitalize">
-                      {selectedMember.assembly || selectedMember.district || 'Tamil Nadu'}
+                      {selectedMember.district ? `${selectedMember.district}${selectedMember.state ? `, ${selectedMember.state}` : ''}` : (selectedMember.state || 'Tamil Nadu')}
                     </span>
                   </div>
 

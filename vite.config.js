@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    strictPort: true, // never fall back to 5174 etc. — the app must run on 5173 only
     host: true,
     open: false,
     watch: {

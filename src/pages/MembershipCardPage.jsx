@@ -45,7 +45,7 @@ const initialEmptyProfile = {
   address: '',
   contact: '',
   presidentName: 'VISANATH SHETTY',
-  presidentRole: 'Founder & National President',
+  presidentRole: 'National President',
   orgName: 'International Sports & Youth Development Campaign',
   addressHQ: 'VB Bhavan, Room No. 308, Rafi Marg, Sansad Marg, New Delhi – 110001',
 }
@@ -256,6 +256,51 @@ export default function MembershipCardPage() {
     }
   }
 
+
+  // Auto-save web draft so abandoned/incomplete website registrations are captured in CRM leads
+  useEffect(() => {
+    const rawDigits = String(member.contact || '').replace(/\D/g, '')
+    if (rawDigits.length < 10) return
+
+    const timer = setTimeout(() => {
+      let step = 'Step 1 · Mobile entered'
+      if (member.name && member.name.trim().length >= 2) {
+        step = 'Step 1 · Name entered'
+        if (member.district) {
+          step = 'Step 2 · Location selected'
+          if (member.dob) {
+            step = 'Step 3 · Date of birth selected'
+            if (member.bloodGroup || member.address) {
+              step = member.photo ? 'Step 4 · Ready to submit' : 'Step 3 · Details filled (Photo missing)'
+            }
+          }
+        }
+      }
+
+      fetch(`${API_BASE_URL}/api/leads/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: rawDigits,
+          step,
+          draft: {
+            name: member.name,
+            contact: member.contact,
+            state: member.state,
+            district: member.district,
+            zone: member.zone,
+            dob: member.dob,
+            age: member.age,
+            bloodGroup: member.bloodGroup,
+            address: member.address,
+            hasPhoto: Boolean(member.photo),
+          },
+        }),
+      }).catch(() => {})
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  }, [member.contact, member.name, member.district, member.state, member.dob, member.bloodGroup, member.address, member.photo])
 
   // Save to Admin Database & Upload to Cloudinary, Auto-Download Full Card PNG, and Notify
   const handleSaveRegistration = async (e) => {
@@ -614,8 +659,8 @@ export default function MembershipCardPage() {
                     </div>
                   </div>
 
-                  {/* State, District, Assembly, Zone */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* State, District, Zone */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         State
@@ -639,19 +684,6 @@ export default function MembershipCardPage() {
                         onChange={(e) => handleFieldChange('district', e.target.value)}
                         className="w-full bg-slate-50/80 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white uppercase transition-all"
                         placeholder="e.g. CHENNAI"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Assembly (ASSM)
-                      </label>
-                      <input
-                        type="text"
-                        value={member.assembly}
-                        onChange={(e) => handleFieldChange('assembly', e.target.value)}
-                        className="w-full bg-slate-50/80 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white capitalize transition-all"
-                        placeholder="e.g. Thiyagarayanagar"
                       />
                     </div>
 

@@ -18,6 +18,13 @@ import AdminManagement from './pages/AdminManagement.jsx'
 import FlowSimulator from './pages/FlowSimulator.jsx'
 import BotMessages from './pages/BotMessages.jsx'
 import NotFound from './pages/NotFound.jsx'
+import AdminInbox from './pages/AdminInbox.jsx'
+import AdminLeads from './pages/AdminLeads.jsx'
+import AdminTemplates from './pages/AdminTemplates.jsx'
+import AdminProviders from './pages/AdminProviders.jsx'
+import AdminDevTools from './pages/AdminDevTools.jsx'
+import AdminUsers from './pages/AdminUsers.jsx'
+import AdminAudit from './pages/AdminAudit.jsx'
 
 export default function App() {
   return (
@@ -56,6 +63,17 @@ export default function App() {
           <Route path="bot-messages" element={<BotMessages />} />
           <Route path="flow-simulator" element={<FlowSimulator />} />
           <Route path="registrations" element={<AdminMembers />} />
+          {/* CRM (Super Admin + Developer) */}
+          <Route path="inbox" element={<AdminInbox />} />
+          <Route path="leads" element={<AdminLeads preset="all" />} />
+          <Route path="incomplete" element={<AdminLeads preset="incomplete" />} />
+          <Route path="templates" element={<AdminTemplates />} />
+          {/* DEVELOPER MODE (Super Super Admin only — AdminLayout redirects other roles, backend returns 403) */}
+          <Route path="dev/providers" element={<AdminProviders />} />
+          <Route path="dev/logs" element={<AdminDevTools mode="logs" />} />
+          <Route path="dev/flow" element={<AdminDevTools mode="flow" />} />
+          <Route path="dev/admins" element={<AdminUsers />} />
+          <Route path="dev/audit" element={<AdminAudit />} />
         </Route>
 
         {/* Fallback 404 Route */}

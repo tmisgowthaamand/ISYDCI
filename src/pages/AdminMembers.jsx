@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import MembershipCard, { CardFront, CardBack } from '../components/MembershipCard.jsx'
 import { toPng } from 'html-to-image'
-import { API_BASE_URL } from '../config/api.js'
+import { API_BASE_URL, apiFetch } from '../config/api.js'
 
 export default function AdminMembers() {
+  const [searchParams] = useSearchParams()
+  const targetId = searchParams.get('id') || ''
+  const initialQuery = searchParams.get('search') || searchParams.get('q') || targetId
+
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(initialQuery)
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedMember, setSelectedMember] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -27,38 +31,6 @@ export default function AdminMembers() {
     setTimeout(() => setActionNotice(''), 3000)
   }
 
-  // Fetch members from backend API
-  const fetchMembers = async (q = '') => {
-    try {
-      setLoading(true)
-      const res = await fetch(`${API_BASE_URL}/api/members${q ? `?q=${encodeURIComponent(q)}` : ''}`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success && Array.isArray(data.members)) {
-          setMembers(data.members)
-          return
-        }
-      }
-      // If server unreachable, check localStorage
-      const local = JSON.parse(localStorage.getItem('isydci_members') || '[]')
-      setMembers(local)
-    } catch {
-      const local = JSON.parse(localStorage.getItem('isydci_members') || '[]')
-      setMembers(local)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchMembers()
-  }, [])
-
-  const handleSearch = (e) => {
-    e.preventDefault()
-    fetchMembers(searchQuery)
-  }
-
   const openPreviewModal = (member, tab = 'card') => {
     setSelectedMember(member)
     setCardFlipped(false)
@@ -70,6 +42,47 @@ export default function AdminMembers() {
     setModalOpen(false)
     setSelectedMember(null)
   }
+
+  // Fetch members from backend API
+  const fetchMembers = async (q = searchQuery) => {
+    try {
+      setLoading(true)
+      const res = await apiFetch(`${API_BASE_URL}/api/members${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && Array.isArray(data.members)) {
+          setMembers(data.members)
+          if (targetId) {
+            const found = data.members.find(m => m.memberId === targetId || m.id === targetId)
+            if (found) openPreviewModal(found)
+          }
+          return
+        }
+      }
+      // If server unreachable, check localStorage
+      const local = JSON.parse(localStorage.getItem('isydci_members') || '[]')
+      setMembers(local)
+      if (targetId) {
+        const found = local.find(m => m.memberId === targetId || m.id === targetId)
+        if (found) openPreviewModal(found)
+      }
+    } catch {
+      const local = JSON.parse(localStorage.getItem('isydci_members') || '[]')
+      setMembers(local)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const qParam = searchParams.get('search') || searchParams.get('q') || targetId
+    if (qParam) {
+      setSearchQuery(qParam)
+      fetchMembers(qParam)
+    } else {
+      fetchMembers('')
+    }
+  }, [searchParams])
 
   // Toggle Member Verification Status (Syncs to Backend API)
   const handleToggleStatus = async (member, e) => {
@@ -84,7 +97,7 @@ export default function AdminMembers() {
     showNotice(`Status updated to ${nextStatus} for ${member.name}`)
 
     try {
-      await fetch(`${API_BASE_URL}/api/members/${member.id || member.memberId}/status`, {
+      await apiFetch(`${API_BASE_URL}/api/members/${member.id || member.memberId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
@@ -154,11 +167,11 @@ export default function AdminMembers() {
 
   const handleDeleteMember = async (id, name, e) => {
     e.stopPropagation()
-    if (!confirm(`Are you sure you want to delete member: ${name}?`)) return
+    if (!confirm(`Are you sure you want to delete member: ${name}?\n\nThis will permanently remove their record from MongoDB and delete all card & photo images from storage.`)) return
     try {
-      await fetch(`${API_BASE_URL}/api/members/${id}`, { method: 'DELETE' })
+      await apiFetch(`${API_BASE_URL}/api/members/${id}`, { method: 'DELETE' })
       setMembers(prev => prev.filter(m => m.id !== id && m.memberId !== id))
-      showNotice(`Deleted member: ${name}`)
+      showNotice(`Deleted member & storage assets: ${name}`)
     } catch {
       setMembers(prev => prev.filter(m => m.id !== id && m.memberId !== id))
       showNotice(`Deleted member: ${name}`)
@@ -293,7 +306,8 @@ export default function AdminMembers() {
                 <th className="py-3.5 px-4">Phone</th>
                 <th className="py-3.5 px-4">Blood Group</th>
                 <th className="py-3.5 px-4">Status (Click to Toggle)</th>
-                <th className="py-3.5 px-4">Joined Date</th>
+                <th className="py-3.5 px-4">Registered On</th>
+                <th className="py-3.5 px-4">Registered Via</th>
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>
             </thead>
@@ -363,7 +377,7 @@ export default function AdminMembers() {
                     {/* Location */}
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-800 capitalize">
-                        {m.assembly || m.district || '—'}
+                        {m.district || m.zone || '—'}
                       </div>
                       <div className="text-[11px] font-bold text-slate-400 uppercase">
                         {m.state || 'TAMIL NADU'}
@@ -397,23 +411,76 @@ export default function AdminMembers() {
                       </button>
                     </td>
 
-                    {/* Joined Date */}
+                    {/* Registered On: date + exact time of registration */}
                     <td className="py-3.5 px-4 text-slate-500 font-medium whitespace-nowrap text-xs">
-                      {m.joinedDate || 'Recent'}
+                      {(() => {
+                        const ts = m.createdAt ? new Date(m.createdAt) : null
+                        if (!ts || isNaN(ts.getTime())) return m.joinedDate || 'Recent'
+                        return (
+                          <div className="leading-tight">
+                            <div className="text-slate-700 font-semibold">
+                              {ts.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              {ts.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </td>
+
+                    {/* Registered Via: where the registration came from */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {m.source === 'whatsapp_flow' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-[#005d4b] text-xs font-bold border border-emerald-200" title="Registered through the WhatsApp registration flow">
+                          <span>💬</span>
+                          <span>WhatsApp Flow</span>
+                        </span>
+                      ) : m.source === 'simulator' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 text-xs font-bold border border-amber-200" title="Registered from the admin Flow Simulator">
+                          <span>🧪</span>
+                          <span>Simulator</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200" title="Registered on the website">
+                          <span>🌐</span>
+                          <span>Web</span>
+                        </span>
+                      )}
                     </td>
 
                     {/* Actions */}
                     <td className="py-3.5 px-5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openPreviewModal(m, 'whatsapp')}
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#005d4b] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-emerald-200 shadow-2xs"
-                          title="Simulate WhatsApp Flow for this member"
-                        >
-                          <span>💬</span>
-                          <span>WhatsApp Flow</span>
-                        </button>
+                        {(() => {
+                          const digits = (m.contact || m.phone || '').replace(/\D/g, '')
+                          const intl = digits.length === 10 ? `91${digits}` : digits
+                          if (!intl) return null
+                          return (
+                            <>
+                              <a
+                                href={`https://wa.me/${intl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#25D366] border border-emerald-200 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                                title={`Chat on WhatsApp: +${intl}`}
+                              >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm0 1.67c2.2 0 4.26.86 5.82 2.42a8.2 8.2 0 012.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.31a8.2 8.2 0 01-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24zm-3.4 4.43c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.38 0 1.4 1.02 2.76 1.17 2.95.14.19 1.98 3.03 4.81 4.25 2.35 1.01 2.83.81 3.34.76.51-.05 1.65-.67 1.88-1.33.23-.65.23-1.21.16-1.33-.07-.12-.26-.19-.54-.33-.28-.14-1.65-.81-1.91-.9-.26-.1-.44-.14-.63.14-.19.28-.72.9-.88 1.09-.16.19-.33.21-.6.07-.28-.14-1.18-.43-2.24-1.38-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.12.28-.33.42-.49.14-.16.19-.28.28-.46.09-.19.05-.35-.02-.49-.07-.14-.63-1.51-.86-2.07-.22-.54-.45-.47-.63-.48h-.54z" />
+                                </svg>
+                              </a>
+                              <a
+                                href={`tel:+${intl}`}
+                                className="w-8 h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                                title={`Call +${intl}`}
+                              >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+                                </svg>
+                              </a>
+                            </>
+                          )
+                        })()}
                         <button
                           type="button"
                           onClick={() => openPreviewModal(m, 'card')}
@@ -451,7 +518,7 @@ export default function AdminMembers() {
       {/* ================= CARD PREVIEW & WHATSAPP SIMULATOR MODAL ================= */}
       {modalOpen && selectedMember && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
-          <div className="relative bg-white/95 backdrop-blur-2xl text-slate-800 rounded-2xl sm:rounded-3xl border border-white shadow-2xl max-w-[920px] w-full max-h-[94vh] overflow-y-auto p-4 sm:p-7 flex flex-col gap-4 animate-fadeIn my-auto">
+          <div className="relative bg-white/95 backdrop-blur-2xl text-slate-800 rounded-2xl sm:rounded-3xl border border-white shadow-2xl max-w-[920px] w-full max-h-[94vh] overflow-y-auto p-3 sm:p-7 flex flex-col gap-4 animate-fadeIn my-auto">
             
             {/* Modal Header & View Mode Switcher */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 pr-8">
@@ -505,7 +572,7 @@ export default function AdminMembers() {
             {modalViewTab === 'whatsapp' ? (
               <div className="w-full flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start animate-fadeIn">
                 {/* Authentic WhatsApp Phone Mockup */}
-                <div className="w-[340px] h-[580px] bg-slate-900 rounded-[38px] p-2.5 shadow-2xl ring-1 ring-slate-800 relative flex flex-col overflow-hidden shrink-0">
+                <div className="w-full max-w-[340px] h-[540px] sm:h-[580px] bg-slate-900 rounded-[38px] p-2.5 shadow-2xl ring-1 ring-slate-800 relative flex flex-col overflow-hidden shrink-0">
                   {/* Phone Screen Container */}
                   <div className="w-full h-full rounded-[30px] bg-[#efeae2] flex flex-col overflow-hidden relative text-slate-800 font-sans">
                     {/* Status Bar */}
@@ -570,7 +637,7 @@ export default function AdminMembers() {
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] space-y-0.5">
                           <div>👤 Athlete: <strong className="text-slate-900">{selectedMember.name}</strong></div>
                           <div>🆔 ID: <strong className="font-mono text-teal-800">{selectedMember.memberId}</strong></div>
-                          <div>📍 State: <strong>{selectedMember.state || 'TAMIL NADU'}</strong> • {selectedMember.district || selectedMember.assembly || 'TRICHY'}</div>
+                          <div>📍 State: <strong>{selectedMember.state || 'TAMIL NADU'}</strong> • {selectedMember.district || 'CHENNAI'}</div>
                           <div className="text-emerald-700 font-bold">✓ Verified Athlete (Reg: 49/1997)</div>
                         </div>
                       </div>
@@ -697,7 +764,7 @@ export default function AdminMembers() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500 font-semibold">State & District</span>
-                        <span className="font-semibold text-slate-800">{selectedMember.state || 'Tamil Nadu'} • {selectedMember.district || selectedMember.assembly || 'Trichy'}</span>
+                        <span className="font-semibold text-slate-800">{selectedMember.state || 'Tamil Nadu'} • {selectedMember.district || 'Chennai'}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500 font-semibold">Status</span>
@@ -792,7 +859,7 @@ export default function AdminMembers() {
                       <div className="flex items-start justify-between">
                         <span className="text-slate-500 font-semibold">Location</span>
                         <span className="font-bold text-slate-800 text-right capitalize">
-                          {selectedMember.assembly || selectedMember.district || 'Tamil Nadu'}
+                          {selectedMember.district ? `${selectedMember.district}${selectedMember.state ? `, ${selectedMember.state}` : ''}` : (selectedMember.state || 'Tamil Nadu')}
                         </span>
                       </div>
 

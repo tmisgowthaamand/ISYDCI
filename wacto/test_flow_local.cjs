@@ -30,6 +30,16 @@ const WEBHOOK_URL = `${BASE}/api/whatsapp/webhook`
 const TEST_PHONE = '919000000001'
 const KEEP = process.argv.includes('--keep')
 
+// admin routes need a login token now
+let ADMIN_TOKEN = ''
+async function login() {
+  const r = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD }) })
+  const d = await r.json()
+  if (!d.token) throw new Error('admin login failed: ' + (d.message || r.status))
+  ADMIN_TOKEN = d.token
+}
+const authHeaders = () => ({ Authorization: 'Bearer ' + ADMIN_TOKEN })
+
 const privateKey = crypto.createPrivateKey(process.env.WHATSAPP_PRIVATE_KEY.replace(/\\n/g, '\n'))
 const publicKey = crypto.createPublicKey(privateKey)
 
@@ -106,11 +116,13 @@ const expect = (cond, msg) => {
 
 async function main() {
   console.log(`Testing against ${BASE}  (test phone +${TEST_PHONE})`)
+  await login()
+  console.log('  ✅ admin login ok')
 
   // Clean any leftover test athlete
-  const existing = await fetch(`${BASE}/api/members/phone/${TEST_PHONE}`).then(r => (r.ok ? r.json() : null))
+  const existing = await fetch(`${BASE}/api/members/phone/${TEST_PHONE}`, { headers: authHeaders() }).then(r => (r.ok ? r.json() : null))
   if (existing?.member) {
-    await fetch(`${BASE}/api/members/${existing.member.id}`, { method: 'DELETE' })
+    await fetch(`${BASE}/api/members/${existing.member.id}`, { method: 'DELETE', headers: authHeaders() })
     console.log(`  (removed leftover test athlete ${existing.member.memberId})`)
   }
 
@@ -140,11 +152,11 @@ async function main() {
     expect(init.data.contact_number === '+91 90000 00001', 'mobile auto-filled from WhatsApp number')
 
     // 3. Step 1 validation error, then success
-    const bad1 = await flow({ action: 'data_exchange', screen: 'REG_LOCATION', data: { ...init.data, full_name: 'A', state: 'Tamil Nadu', district: 'Chennai', assembly: 'Velachery', zone: 'Ward 25' } })
+    const bad1 = await flow({ action: 'data_exchange', screen: 'REG_LOCATION', data: { ...init.data, full_name: 'A', state: 'Tamil Nadu', district: 'Chennai', zone: 'Ward 25' } })
     show('STEP 1 with 1-letter name', bad1)
     expect(bad1.screen === 'REG_LOCATION' && bad1.data.has_error === true, 'short name is rejected and stays on step 1')
 
-    const s1 = await flow({ action: 'data_exchange', screen: 'REG_LOCATION', data: { ...init.data, full_name: 'Test Athlete Flow', state: 'Tamil Nadu', district: 'Chennai', assembly: 'Velachery', zone: 'Ward 25' } })
+    const s1 = await flow({ action: 'data_exchange', screen: 'REG_LOCATION', data: { ...init.data, full_name: 'Test Athlete Flow', state: 'Tamil Nadu', district: 'Chennai', zone: 'Ward 25' } })
     show('STEP 1 ok', s1)
     expect(s1.screen === 'REG_DOB' && s1.data.has_error === false, 'step 1 -> REG_DOB')
 
@@ -180,7 +192,7 @@ async function main() {
     show('STEP 4 submit', s4)
     expect(s4.screen === 'REG_SUCCESS' && /^ISYDCI-[0-9A-F]{8}$/.test(s4.data.member_id), `registered with Member ID ${s4.data.member_id}`)
 
-    const saved = await fetch(`${BASE}/api/members/phone/${TEST_PHONE}`).then(r => r.json())
+    const saved = await fetch(`${BASE}/api/members/phone/${TEST_PHONE}`, { headers: authHeaders() }).then(r => r.json())
     expect(saved.success && saved.member.memberId === s4.data.member_id, 'member is in backend/data/members.json (admin panel)')
     expect(/^https?:\/\//.test(saved.member.cardFullUrl || ''), `card image generated: ${saved.member.cardFullUrl}`)
     expect(saved.member.age === s2.data.age && saved.member.dob === '15 Aug 1999', 'dob/age stored correctly')
@@ -205,7 +217,7 @@ async function main() {
     await new Promise(r => setTimeout(r, 1500)) // let async webhook sends log
 
     if (!KEEP) {
-      await fetch(`${BASE}/api/members/${saved.member.id}`, { method: 'DELETE' })
+      await fetch(`${BASE}/api/members/${saved.member.id}`, { method: 'DELETE', headers: authHeaders() })
       console.log(`\n🧹 Test athlete ${saved.member.memberId} removed from the database.`)
     } else {
       console.log(`\n📌 Test athlete ${saved.member.memberId} kept (--keep).`)

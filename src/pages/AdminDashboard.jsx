@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { API_BASE_URL } from '../config/api.js'
+import { API_BASE_URL, apiFetch } from '../config/api.js'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -14,7 +14,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/stats`)
+    apiFetch(`${API_BASE_URL}/api/stats`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.stats) {
@@ -72,7 +72,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* 4 Overview Metric Cards (Glassy Frosted Design & Executive Color Accents) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
         
         {/* Card 1: Total Members */}
         <div className="bg-white/80 backdrop-blur-xl p-5 rounded-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-lg hover:border-blue-200 transition-all flex items-center gap-4 group">
@@ -163,10 +163,10 @@ export default function AdminDashboard() {
       </div>
 
       {/* Main Grid: Recent Registrations & Quick Operations */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-8 items-start">
         
         {/* Left: Recent Registrations Table */}
-        <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-7">
+        <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 sm:p-7">
           <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
             <div>
               <h2 className="text-base font-extrabold text-[#0b1e3f] font-['Montserrat']">
@@ -210,7 +210,7 @@ export default function AdminDashboard() {
 
                   <div className="text-right flex items-center gap-3">
                     <span className="hidden sm:inline-block text-xs font-semibold text-slate-600 capitalize">
-                      {m.district || m.assembly || 'Tamil Nadu'}
+                      {m.district || m.zone || m.state || 'Tamil Nadu'}
                     </span>
                     <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
                       m.status === 'Verified'
@@ -254,7 +254,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Right: Quick Operations & Directory Controls (Glassy Frosted Theme) */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-7 flex flex-col justify-between">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 sm:p-7 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50/90 px-2 py-0.5 rounded-md border border-blue-200/80">

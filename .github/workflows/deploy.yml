@@ -1,0 +1,86 @@
+# CI + automatic production deploy to the DigitalOcean droplet (isydci.com).
+#
+# On every push to main:
+#   1. install, build the frontend, start MongoDB + the backend, run the full test suite
+#   2. only if all tests pass AND the deploy secrets exist: SSH into the droplet and run scripts/deploy_droplet.sh
+#
+# Required GitHub secrets for step 2 (Settings → Secrets → Actions):
+#   DROPLET_HOST   e.g. 143.244.129.138 or isydci.com
+#   DROPLET_USER   e.g. root or deploy
+#   DROPLET_SSH_KEY  private key whose public half is in ~/.ssh/authorized_keys on the droplet
+#   DROPLET_APP_DIR  e.g. /var/www/isydci  (the git checkout on the droplet)
+name: test-and-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8
+        ports: ['27017:27017']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install frontend + backend
+        run: |
+          npm ci
+          npm --prefix backend ci
+      - name: Build frontend
+        run: npm run build
+      - name: Write test env
+        run: |
+          cat > backend/.env <<EOF
+          PORT=5000
+          MONGO_URL=mongodb://127.0.0.1:27017/isydci_ci
+          ADMIN_USERNAME=admin
+          ADMIN_PASSWORD=ci_admin_password_123
+          SUPER_SUPER_ADMIN_USERNAME=developer
+          SUPER_SUPER_ADMIN_PASSWORD=ci_dev_password_123
+          JWT_SECRET=ci_jwt_secret
+          WHATSAPP_VERIFY_TOKEN=ci_verify
+          WHATSAPP_PRIVATE_KEY="${{ secrets.CI_WHATSAPP_PRIVATE_KEY }}"
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          EOF
+      - name: Start backend
+        run: |
+          (cd backend && node server.js > ../backend.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://localhost:5000/api/health && break; sleep 1; done
+      - name: Run test suite
+        run: |
+          node backend/tests/test_auth_roles.mjs
+          node backend/tests/test_leads.mjs
+          node backend/tests/test_templates.mjs
+      - name: Backend log on failure
+        if: failure()
+        run: cat backend.log
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          HOST: ${{ secrets.DROPLET_HOST }}
+          USER: ${{ secrets.DROPLET_USER }}
+          KEY: ${{ secrets.DROPLET_SSH_KEY }}
+          APP_DIR: ${{ secrets.DROPLET_APP_DIR }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$KEY" ]; then
+            echo "Deploy secrets not set — skipping production deploy (tests passed)."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy "$USER@$HOST" "bash -lc 'cd $APP_DIR && bash scripts/deploy_droplet.sh'"

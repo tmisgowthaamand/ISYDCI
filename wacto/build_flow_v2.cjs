@@ -25,7 +25,6 @@ const REG_EXAMPLES = {
   contact_number: '+91 91234 56789',
   state: 'Tamil Nadu',
   district: 'Chennai',
-  assembly: 'Velachery',
   zone: 'Ward 25',
   dob: '934675200000',
   dob_display: '15 Aug 1999',
@@ -82,7 +81,6 @@ const screens = [
             { type: 'TextInput', name: 'full_name', label: 'Full Name', required: true, 'input-type': 'text', 'helper-text': 'Official name as per Govt ID' },
             { type: 'Dropdown', name: 'state', label: 'State / Union Territory', required: true, 'data-source': STATES.map(s => ({ id: s, title: s })) },
             { type: 'TextInput', name: 'district', label: 'District', required: true, 'input-type': 'text', 'helper-text': 'e.g. Chennai' },
-            { type: 'TextInput', name: 'assembly', label: 'Assembly / Constituency', required: true, 'input-type': 'text', 'helper-text': 'e.g. Velachery' },
             { type: 'TextInput', name: 'zone', label: 'Zone / Ward / Area', required: true, 'input-type': 'text', 'helper-text': 'e.g. Ward 25' },
             {
               type: 'Footer',
@@ -93,7 +91,6 @@ const screens = [
                   full_name: '${form.full_name}',
                   state: '${form.state}',
                   district: '${form.district}',
-                  assembly: '${form.assembly}',
                   zone: '${form.zone}',
                 }),
               },
@@ -203,7 +200,6 @@ const screens = [
             '📞 Mobile Number • ${data.contact_number}\n' +
             '🏛️ State • ${data.state}\n' +
             '📍 District • ${data.district}\n' +
-            '📍 Assembly • ${data.assembly}\n' +
             '📍 Zone • ${data.zone}\n' +
             '📅 Date of Birth • ${data.dob_display}\n' +
             '🎂 Age • ${data.age}\n' +
@@ -280,7 +276,6 @@ const screens = [
       member_id: str('ISYDCI-684DDC04'),
       state: str('TAMIL NADU'),
       district: str('CHENNAI'),
-      assembly: str('Velachery'),
       dob: str('15 Aug 1999'),
       blood_group: str('O+'),
       contact: str('+91 91234 56789'),

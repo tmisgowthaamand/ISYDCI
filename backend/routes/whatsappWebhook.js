@@ -8,6 +8,9 @@ import express from 'express'
 import { findMemberByPhone, saveMember, getMemberById } from '../db/db.js'
 import { generateAndUploadCard, SITE_URL } from '../services/cardRenderer.js'
 import { registerFromFlow, parseDob, formatPhoneDisplay } from './flowEndpoint.js'
+import { logWhatsAppInbound, logWhatsAppOutbound } from '../utils/liveLogger.js'
+import { upsertLeadFromInbound, recordOutbound, markCardIssued, updateMessageStatus } from '../services/leads.js'
+import { recordEvent } from '../services/audit.js'
 
 const router = express.Router()
 
@@ -28,8 +31,9 @@ function cardPageUrl(member) {
 async function sendWhatsApp(recipient, payload) {
   const token = process.env.WHATSAPP_TOKEN
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const kind = payload.type === 'interactive' ? `interactive/${payload.interactive?.type}` : payload.type
   if (!token || !phoneId) {
-    console.log(`❌ [WHATSAPP CONFIG] WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID missing in backend/.env`)
+    logWhatsAppOutbound({ recipient, kind, error: 'WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID missing in backend/.env' })
     return null
   }
   try {
@@ -39,15 +43,15 @@ async function sendWhatsApp(recipient, payload) {
       body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: recipient, ...payload }),
     })
     const data = await res.json()
-    const kind = payload.type === 'interactive' ? `interactive/${payload.interactive?.type}` : payload.type
     if (res.ok && data.messages) {
-      console.log(`📤 [WHATSAPP SENT] ${kind} -> +${recipient} (id ${data.messages[0]?.id}) ✅`)
+      logWhatsAppOutbound({ recipient, kind, messageId: data.messages[0]?.id })
+      recordOutbound(recipient, payload, data.messages[0]?.id, 'meta').catch(() => {})
     } else {
-      console.log(`❌ [WHATSAPP SEND ERROR] ${kind} -> +${recipient}: ${JSON.stringify(data.error || data)}`)
+      logWhatsAppOutbound({ recipient, kind, error: data.error || data })
     }
     return data
   } catch (err) {
-    console.error(`❌ [WHATSAPP SEND EXCEPTION] -> +${recipient}: ${err.message}`)
+    logWhatsAppOutbound({ recipient, kind, error: err.message })
     return null
   }
 }
@@ -183,17 +187,30 @@ async function sendRegistrationFlow(to) {
   return res
 }
 
+// Card design version — bump this whenever the card layout/signature/text changes
+// so that cached Cloudinary images are automatically re-rendered on next send.
+const CARD_DESIGN_VERSION = 3 // v3: remove Assembly from card front + real signature + "National President"
+
 async function ensureCardUrl(member) {
-  if (member.cardFullUrl && member.cardFullUrl.startsWith('http')) return member
-  console.log(`   🪪 No card image stored for ${member.memberId} — rendering now...`)
-  const url = await generateAndUploadCard(member)
+  const currentVersion = member.cardDesignVersion || 0
+  if (member.cardFullUrl && member.cardFullUrl.startsWith('http') && currentVersion >= CARD_DESIGN_VERSION) return member
+  console.log(`   🪪 ${currentVersion < CARD_DESIGN_VERSION ? 'Card design updated' : 'No card image stored'} for ${member.memberId} — re-rendering...`)
+  const res = await generateAndUploadCard(member)
+  const url = res?.cardFullUrl || (typeof res === 'string' ? res : '')
   if (!url) return member
-  return saveMember({ ...member, cardFullUrl: url })
+  return saveMember({
+    ...member,
+    cardFullUrl: url,
+    cardFrontUrl: res?.cardFrontUrl || member.cardFrontUrl,
+    cardBackUrl: res?.cardBackUrl || member.cardBackUrl,
+    cardDesignVersion: CARD_DESIGN_VERSION,
+  })
 }
 
 /** Sends the card image + the "View & Download Card" button. */
 async function sendMembershipCard(to, memberIn) {
   const member = await ensureCardUrl(memberIn)
+  markCardIssued(to, member).catch(() => {})
   const caption =
     `🪪 *Official ISYDCI Athlete Membership Card*\n\n` +
     `👤 Athlete: *${member.name}*\n🆔 Member ID: *${member.memberId}*\n` +
@@ -268,7 +285,7 @@ const sendContact = to =>
 
 /** Flow finished (nfm_reply). The member was saved by the Flow endpoint on the confirm step. */
 async function handleFlowCompletion(sender, payload) {
-  let member = (payload.member_id && getMemberById(payload.member_id)) || findMemberByPhone(sender)
+  let member = (payload.member_id && (await getMemberById(payload.member_id))) || (await findMemberByPhone(sender))
 
   // Legacy / fallback: a flow that completed without touching the endpoint still carries the fields
   if (!member && payload.full_name) {
@@ -343,8 +360,17 @@ router.post('/', async (req, res) => {
   res.status(200).send('EVENT_RECEIVED')
 
   try {
-    const value = body.entry?.[0]?.changes?.[0]?.value
+    const change = body.entry?.[0]?.changes?.[0]
+    const value = change?.value
     if (!value) return
+
+    if (['message_template_status_update', 'message_template_components_update', 'template_category_update'].includes(change.field)) {
+      const { onTemplateStatusWebhook } = await import('../services/templates.js')
+      console.log(`📋 [TEMPLATE WEBHOOK ${time}] (${change.field}) ${value.message_template_name} (${value.message_template_language}) -> ${value.event || 'COMPONENTS_UPDATED'}${value.reason ? ' — ' + value.reason : ''}`)
+      recordEvent('template_status', `${value.message_template_name} -> ${value.event || change.field}`, value).catch(() => {})
+      await onTemplateStatusWebhook(value)
+      return
+    }
 
     for (const msg of value.messages || []) {
       if (alreadyHandled(msg.id)) {
@@ -352,13 +378,25 @@ router.post('/', async (req, res) => {
         continue
       }
       const sender = msg.from
+      const senderName = value.contacts?.find(c => c.wa_id === sender)?.profile?.name || ''
       const msgType = msg.type
-      const member = findMemberByPhone(sender)
+      const member = await findMemberByPhone(sender)
       markAsRead(msg.id)
+      await upsertLeadFromInbound(msg, value, member).catch(err => console.warn('[Leads] inbound tracking failed:', err.message))
+      recordEvent('whatsapp_inbound', `${msgType} from +${sender}`, msg).catch(() => {})
 
-      console.log(`\n======================================================`)
-      console.log(`💬 [WHATSAPP INBOUND ${time}]  from +${sender}  type=${msgType}`)
-      console.log(`   👤 Identity:   ${member ? `REGISTERED — ${member.name} (${member.memberId})` : 'NEW / UNREGISTERED'}`)
+      const text = (msg.text?.body || '').trim()
+      const tappedTitle = msg.interactive?.list_reply?.title || msg.interactive?.button_reply?.title || ''
+
+      logWhatsAppInbound({
+        sender,
+        senderName,
+        msgType,
+        text,
+        title: tappedTitle,
+        member,
+        rawPayload: msg,
+      })
 
       // A. Flow completion
       if (msgType === 'interactive' && msg.interactive?.type === 'nfm_reply') {
@@ -429,12 +467,14 @@ router.post('/', async (req, res) => {
 
     for (const st of value.statuses || []) {
       const recipient = st.recipient_id
+      updateMessageStatus(st.id, st.status, st.errors).catch(() => {})
       if (st.status === 'failed') {
-        console.log(`❌ [WHATSAPP DELIVERY FAILED ${time}] -> +${recipient}: ${(st.errors || []).map(e => `${e.code} ${e.title}`).join('; ')}`)
+        const errorDetail = (st.errors || []).map(e => `${e.code} ${e.title}`).join('; ')
+        logWhatsAppOutbound({ recipient, kind: 'DELIVERY_FAILED', error: errorDetail })
       } else if (st.status === 'delivered') {
-        console.log(`🚚 [WHATSAPP STATUS ${time}] delivered to +${recipient} ✅`)
+        logWhatsAppOutbound({ recipient, kind: 'DELIVERED', messageId: st.id })
       } else if (st.status === 'read') {
-        console.log(`👁️  [WHATSAPP STATUS ${time}] read by +${recipient} ✅`)
+        logWhatsAppOutbound({ recipient, kind: 'READ', messageId: st.id })
       }
     }
   } catch (err) {

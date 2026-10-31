@@ -6,8 +6,13 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
-    "build": "echo 'Backend build successful'"
+    "dev": "node --watch --watch-path=server.js --watch-path=routes --watch-path=services --watch-path=db --watch-path=config --watch-path=utils server.js",
+    "tunnel": "ngrok http 5000",
+    "build": "echo 'Backend build successful'",
+    "test": "node tests/test_auth_roles.mjs && node tests/test_leads.mjs && node tests/test_templates.mjs",
+    "test:flow": "node ../wacto/test_flow_local.cjs",
+    "test:load": "node scripts/seed_leads.mjs --count 1000000",
+    "seed:clean": "node scripts/seed_leads.mjs --clean"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.69",
@@ -15,6 +20,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "mongodb": "^6.12.0",
     "qrcode": "^1.5.4"
   }
 }

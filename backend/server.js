@@ -7,9 +7,19 @@ import membersRouter from './routes/members.js'
 import authRouter from './routes/auth.js'
 import flowEndpointRouter from './routes/flowEndpoint.js'
 import whatsappWebhookRouter from './routes/whatsappWebhook.js'
+import leadsRouter from './routes/leads.js'
+import templatesRouter from './routes/templates.js'
+import devRouter from './routes/dev.js'
+import { connectDb } from './db/mongo.js'
+import { bootstrapFromJson } from './db/db.js'
+import { ensureSeedAdmins, optionalAuth } from './services/auth.js'
+import { auditMiddleware } from './services/audit.js'
+import { startLeadSweeper, syncMembersToLeads } from './services/leads.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+import { recentLiveLogs, logWebRequest, logFlowEvent } from './utils/liveLogger.js'
 
 // Load environment variables dynamically from .env (no hardcoded keys)
 dotenv.config({ path: path.resolve(__dirname, '.env') })
@@ -17,9 +27,6 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
 const app = express()
 const PORT = process.env.PORT || 5000
-
-// In-memory buffer of recent requests for live web inspection
-const recentLiveLogs = []
 
 // Comprehensive CORS setup explicitly supporting Vercel and all clients
 app.use(cors({
@@ -30,6 +37,9 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')))
+app.use(optionalAuth)
+app.use(auditMiddleware)
 
 // Live Request Logger Middleware (Visible in terminal and /api/live-logs)
 app.use((req, res, next) => {
@@ -45,25 +55,11 @@ app.use((req, res, next) => {
 
   res.on('finish', () => {
     const duration = Date.now() - start
-    const statusIcon = res.statusCode >= 400 ? '❌' : '✅'
-    const logLine = `${statusIcon} ${new Date().toISOString()} | ${req.method} ${req.originalUrl} | Status: ${res.statusCode} | ${duration}ms | Client: ${clientTag}`
-    console.log(logLine)
+    const payloadSummary = (req.method === 'POST' && req.body?.name)
+      ? `Member: "${req.body.name}", ID: "${req.body.memberId || 'AUTO'}", Status: "${req.body.status || 'Verified'}"`
+      : undefined
 
-    if (req.method === 'POST' && req.body?.name) {
-      console.log(`   ↳ [PAYLOAD] Member: "${req.body.name}", ID: "${req.body.memberId || 'AUTO'}", Status: "${req.body.status || 'Verified'}"`)
-    }
-
-    recentLiveLogs.unshift({
-      timestamp: new Date().toISOString(),
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration: `${duration}ms`,
-      client: clientTag,
-      origin,
-      payloadSummary: req.body?.name ? `Member: ${req.body.name}` : undefined,
-    })
-    if (recentLiveLogs.length > 50) recentLiveLogs.pop()
+    logWebRequest({ req, res, duration, clientTag, payloadSummary })
   })
 
   next()
@@ -71,31 +67,7 @@ app.use((req, res, next) => {
 
 // Endpoint to display Flow Simulator clicks and errors in the terminal
 app.post('/api/flow-log', (req, res) => {
-  const { status, option, fromNode, toNode, toNodeName, error, details } = req.body || {}
-  const time = new Date().toLocaleTimeString()
-
-  if (status === 'error') {
-    console.log(`\n======================================================`)
-    console.log(`❌ [FLOW ERROR ${time}]`)
-    console.log(`   👉 Option Clicked: "${option}"`)
-    console.log(`   📍 Current Node:   [${fromNode || 'unknown'}]`)
-    console.log(`   ⚠️  Issue:          ${error || 'No matching edge found in flow JSON'}`)
-    console.log(`======================================================\n`)
-  } else {
-    console.log(`\n======================================================`)
-    console.log(`📱 [FLOW CLICK ${time}]`)
-    console.log(`   👉 Option Clicked: "${option}"`)
-    console.log(`   📍 From Node:      [${fromNode || 'root'}]`)
-    if (toNode) {
-      console.log(`   ➡️  Next Node:      [${toNode}] ${toNodeName || ''}`)
-    }
-    if (details) {
-      console.log(`   ⚡ Backend Action: ${details}`)
-    }
-    console.log(`   ✅ Result:         SUCCESS`)
-    console.log(`======================================================\n`)
-  }
-
+  logFlowEvent(req.body || {})
   res.json({ success: true })
 })
 
@@ -157,11 +129,16 @@ app.get('/api/health', (req, res) => {
     backendUrl: 'https://isydci.onrender.com',
     cloudinaryConfigured: !!(process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME),
     adminConfigured: !!(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD),
+    developerConfigured: !!(process.env.SUPER_SUPER_ADMIN_USERNAME && process.env.SUPER_SUPER_ADMIN_PASSWORD),
+    database: 'mongodb',
   })
 })
 
 // Mount API Routes
 app.use('/api/auth', authRouter)
+app.use('/api/leads', leadsRouter)
+app.use('/api/templates', templatesRouter)
+app.use('/api/dev', devRouter)
 app.use('/api/members', membersRouter)
 app.use('/api', membersRouter) // exposes /api/stats
 app.use('/api/whatsapp/flow-endpoint', flowEndpointRouter)
@@ -175,12 +152,29 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: err.message || 'Internal Server Error' })
 })
 
-app.listen(PORT, () => {
+async function start() {
+  try {
+    await connectDb()
+    await bootstrapFromJson()
+    await ensureSeedAdmins()
+    await syncMembersToLeads()
+    startLeadSweeper()
+  } catch (err) {
+    console.error('❌ [Startup] MongoDB connection failed:', err.message)
+    console.error('   Start MongoDB (Windows service "MongoDB") or set MONGO_URL in backend/.env, then restart.')
+    process.exit(1)
+  }
+
+  app.listen(PORT, () => {
   console.log(`\n======================================================`)
   console.log(`🚀 ISYDCI Backend Server running on http://localhost:${PORT}`)
+  console.log(`🔗 Webhook Tunnel: Forward to PORT ${PORT} (run: npm run tunnel)`)
   console.log(`🌐 Frontend Client URL: ${process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173'}`)
   console.log(`☁️  Cloudinary Cloud Name: ${process.env.CLOUDINARY_CLOUD_NAME || 'NOT CONFIGURED'}`)
   console.log(`🔑 Cloudinary API Key: ${process.env.CLOUDINARY_API_KEY ? 'Present' : 'Missing'}`)
   console.log(`👤 Admin Username: ${process.env.ADMIN_USERNAME || 'NOT CONFIGURED'}`)
   console.log(`======================================================\n`)
 })
+}
+
+start()
