@@ -20,6 +20,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 import { recentLiveLogs, logWebRequest, logFlowEvent } from './utils/liveLogger.js'
+import { generalApiLimiter } from './middleware/rateLimiter.js'
 
 // Load environment variables dynamically from .env (no hardcoded keys)
 dotenv.config({ path: path.resolve(__dirname, '.env') })
@@ -27,6 +28,9 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
 const app = express()
 const PORT = process.env.PORT || 5000
+
+// Behind Nginx reverse proxy on droplet
+app.set('trust proxy', 1)
 
 // Comprehensive CORS setup explicitly supporting Vercel and all clients
 app.use(cors({
@@ -133,6 +137,9 @@ app.get('/api/health', (req, res) => {
     database: 'mongodb',
   })
 })
+
+// Rate Limiting (General API protection, automatically skips webhooks & health checks)
+app.use('/api', generalApiLimiter)
 
 // Mount API Routes
 app.use('/api/auth', authRouter)

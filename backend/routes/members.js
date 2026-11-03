@@ -5,6 +5,7 @@ import { generateAndUploadCard } from '../services/cardRenderer.js'
 import { deleteMemberFiles } from '../services/storage.js'
 import { requireAuth } from '../services/auth.js'
 import { onMemberRegistered } from '../services/leads.js'
+import { registrationLimiter } from '../middleware/rateLimiter.js'
 
 const router = Router()
 
@@ -62,8 +63,8 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// POST /api/members — Register member (public: website registration form). Uploads assets to Cloudinary.
-router.post('/', async (req, res) => {
+// POST /api/members — Register member (rate-limited: max 15 / min per IP)
+router.post('/', registrationLimiter, async (req, res) => {
   try {
     const {
       name,

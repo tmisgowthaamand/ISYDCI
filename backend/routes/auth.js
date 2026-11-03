@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import { authenticate, requireAuth, listAdmins, createAdmin, updateAdmin, deleteAdmin, ROLES, ROLE_LABEL } from '../services/auth.js'
 import { logAudit } from '../services/audit.js'
+import { loginLimiter } from '../middleware/rateLimiter.js'
 
 const router = Router()
 
-// POST /api/auth/login — both roles use the same login; the account's role decides what the panel shows
-router.post('/login', async (req, res) => {
+// POST /api/auth/login — brute-force protected (max 10 failed attempts / 15 min per IP)
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body || {}
     if (!username || !password) {
