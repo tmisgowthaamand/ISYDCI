@@ -536,14 +536,14 @@ function isUnattendedTermination(event, endReason, durationSec, existing) {
   return false
 }
 
-export async function ingestCallRecording(callId, mediaId, { fetchImpl = fetch, maxRetries = 3 } = {}) {
-  if (!callId || !mediaId) return null
+export async function ingestCallRecording(callId, mediaId, { fetchImpl = fetch, maxRetries = 3, directUrl = null } = {}) {
+  if (!callId || (!mediaId && !directUrl)) return null
   const existing = await CALLS().findOne({ callId })
   if (!existing?.attended) {
     console.log(`⏭️  [CALL RECORDING] Skipping unattended call ${callId} (media ${mediaId})`)
     return null
   }
-  if (existing.recording_status === 'ready' && existing.recording_media_id === mediaId && existing.recording_file) {
+  if (existing.recording_status === 'ready' && existing.recording_media_id === (mediaId || existing.recording_media_id) && existing.recording_file) {
     return { recordingUrl: existing.recording_url, call: existing, skipped: true }
   }
 
@@ -552,22 +552,32 @@ export async function ingestCallRecording(callId, mediaId, { fetchImpl = fetch, 
 
   await CALLS().updateOne(
     { callId },
-    { $set: { recording_media_id: mediaId, recording_status: 'pending', updatedAt: new Date() } }
+    { $set: { recording_media_id: mediaId || null, recording_status: 'pending', updatedAt: new Date() } }
   )
 
   let lastErr = null
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const metaRes = await fetchImpl(`${GRAPH_BASE}/${encodeURIComponent(mediaId)}`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const metaJson = await metaRes.json().catch(() => ({}))
-      if (!metaRes.ok || !metaJson.url) {
-        throw new Error(metaJson.error?.message || `Media lookup failed (${metaRes.status})`)
+      let downloadUrl = directUrl || null
+      let metaMimeType = null
+
+      if (mediaId) {
+        const metaRes = await fetchImpl(`${GRAPH_BASE}/${encodeURIComponent(mediaId)}`, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const metaJson = await metaRes.json().catch(() => ({}))
+        if (metaRes.ok && metaJson.url) {
+          downloadUrl = metaJson.url
+          metaMimeType = metaJson.mime_type || null
+        } else if (!downloadUrl) {
+          throw new Error(metaJson.error?.message || `Media lookup failed (${metaRes.status})`)
+        }
       }
 
-      const binRes = await fetchImpl(metaJson.url, {
+      if (!downloadUrl) throw new Error('No media download URL resolved')
+
+      const binRes = await fetchImpl(downloadUrl, {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -579,7 +589,7 @@ export async function ingestCallRecording(callId, mediaId, { fetchImpl = fetch, 
       const buf = Buffer.from(arrayBuf)
       if (!buf.length) throw new Error('Downloaded recording file is empty')
 
-      const mimeType = metaJson.mime_type || binRes.headers.get('content-type') || 'audio/ogg'
+      const mimeType = metaMimeType || binRes.headers.get('content-type') || 'audio/ogg'
       const ext = mimeType.includes('mpeg') || mimeType.includes('mp3')
         ? 'mp3'
         : mimeType.includes('webm')
@@ -637,6 +647,19 @@ export async function ingestCallRecording(callId, mediaId, { fetchImpl = fetch, 
   return { failed: true, error: lastErr?.message }
 }
 
+function extractRecordingMedia(call, value) {
+  const rec = call?.call_recording || call?.recording || value?.call_recording || value?.recording || null
+  const mediaId =
+    rec?.audio?.id ||
+    rec?.media_id ||
+    rec?.id ||
+    call?.recording_media_id ||
+    call?.media_id ||
+    null
+  const directUrl = rec?.audio?.url || rec?.url || null
+  return { mediaId, directUrl }
+}
+
 export async function handleCallsWebhook(value, { awaitRecording = false, fetchImpl = fetch } = {}) {
   if (!value) return
   const recordingTasks = []
@@ -660,14 +683,19 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
     const member = waId ? await findMemberByPhone(waId).catch(() => null) : null
     const lead = waId ? await LEADS().findOne({ phone: waId }).catch(() => null) : null
 
-    if (event === 'recording') {
-      const mediaId = call.recording?.media_id || call.media_id || call.recording_media_id
+    if (event === 'recording' || event === 'call_recording_available' || Boolean(call.call_recording)) {
+      const { mediaId, directUrl } = extractRecordingMedia(call, value)
+      await recordEvent(
+        'whatsapp_call_recording_webhook',
+        `Recording webhook (${event || 'call_recording'}) for ${callId}${mediaId ? ` (media ${mediaId})` : ''}`,
+        call
+      ).catch(() => {})
       const existing = await CALLS().findOne({ callId })
-      if (mediaId && existing?.attended) {
-        const task = ingestCallRecording(callId, mediaId, { fetchImpl })
+      if ((mediaId || directUrl) && existing?.attended) {
+        const task = ingestCallRecording(callId, mediaId, { fetchImpl, directUrl })
         recordingTasks.push(task)
       } else {
-        console.log(`⏭️  [CALL RECORDING] Ignored standalone recording event for unattended/unknown call ${callId}`)
+        console.log(`⏭️  [CALL RECORDING] Ignored standalone recording event for unattended/unknown call ${callId} (attended=${Boolean(existing?.attended)}, mediaId=${mediaId || 'none'})`)
       }
       continue
     }
@@ -749,7 +777,7 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
               ? 'missed'
               : 'completed'
 
-      const mediaId = call.recording?.media_id || call.recording_media_id || call.media_id || value.recording?.media_id || null
+      const { mediaId, directUrl } = extractRecordingMedia(call, value)
 
       const setFields = {
         status: finalStatus,
@@ -788,8 +816,8 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
         { upsert: true }
       )
 
-      if (attended && mediaId) {
-        recordingTasks.push(ingestCallRecording(callId, mediaId, { fetchImpl }))
+      if (attended && (mediaId || directUrl)) {
+        recordingTasks.push(ingestCallRecording(callId, mediaId, { fetchImpl, directUrl }))
       }
 
       const updated = await CALLS().findOne({ callId })
