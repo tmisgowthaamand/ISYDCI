@@ -44,6 +44,7 @@ export default function CallControls({ phone, name }) {
   const recorderRef = useRef(null)
   const audioCtxRef = useRef(null)
   const audioDestRef = useRef(null)
+  const audioSilencerRef = useRef(null)
   const chunksRef = useRef([])
   const recordingCallIdRef = useRef(null)
   const activeCallIdRef = useRef(null)
@@ -79,6 +80,7 @@ export default function CallControls({ phone, name }) {
             audioCtxRef.current.close().catch(() => {})
             audioCtxRef.current = null
             audioDestRef.current = null
+            audioSilencerRef.current = null
           }
           recorderRef.current = null
           recordingCallIdRef.current = null
@@ -115,13 +117,20 @@ export default function CallControls({ phone, name }) {
   const ensureAudioMix = async () => {
     if (!audioCtxRef.current) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext
-      audioCtxRef.current = new AudioCtx()
-      audioDestRef.current = audioCtxRef.current.createMediaStreamDestination()
+      const ctx = new AudioCtx()
+      const dest = ctx.createMediaStreamDestination()
+      // Silent sink keeps Firefox's WebAudio rendering thread active for MediaStreamDestination
+      const silencer = ctx.createGain()
+      silencer.gain.value = 0
+      silencer.connect(ctx.destination)
+      audioCtxRef.current = ctx
+      audioDestRef.current = dest
+      audioSilencerRef.current = silencer
     }
     if (audioCtxRef.current.state === 'suspended') {
       await audioCtxRef.current.resume().catch(() => {})
     }
-    return { ctx: audioCtxRef.current, dest: audioDestRef.current }
+    return { ctx: audioCtxRef.current, dest: audioDestRef.current, silencer: audioSilencerRef.current }
   }
 
   const startRecording = async callId => {
@@ -216,7 +225,7 @@ export default function CallControls({ phone, name }) {
   }, [activeCall?.callId, activeCall?.status])
 
   const createPeerConnection = async () => {
-    const { ctx, dest } = await ensureAudioMix()
+    const { ctx, dest, silencer } = await ensureAudioMix()
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     })
@@ -224,14 +233,18 @@ export default function CallControls({ phone, name }) {
     streamRef.current = stream
     stream.getTracks().forEach(track => pc.addTrack(track, stream))
     if (stream.getAudioTracks().length) {
-      ctx.createMediaStreamSource(stream).connect(dest)
+      const localSrc = ctx.createMediaStreamSource(stream)
+      localSrc.connect(dest)
+      if (silencer) localSrc.connect(silencer)
     }
     pc.ontrack = evt => {
       if (evt.streams?.[0]) {
         remoteStreamRef.current = evt.streams[0]
         if (audioRef.current) audioRef.current.srcObject = evt.streams[0]
         if (evt.streams[0].getAudioTracks().length && audioCtxRef.current && audioDestRef.current) {
-          audioCtxRef.current.createMediaStreamSource(evt.streams[0]).connect(audioDestRef.current)
+          const remoteSrc = audioCtxRef.current.createMediaStreamSource(evt.streams[0])
+          remoteSrc.connect(audioDestRef.current)
+          if (audioSilencerRef.current) remoteSrc.connect(audioSilencerRef.current)
         }
         if (activeCallIdRef.current && !recorderRef.current) {
           startRecording(activeCallIdRef.current)
