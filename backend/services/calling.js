@@ -6,7 +6,14 @@
 // - X-Hub-Signature-256 verification helper
 
 import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { EventEmitter } from 'events'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const RECORDINGS_DIR = path.resolve(__dirname, '../uploads/recordings')
 import { col } from '../db/mongo.js'
 import { findMemberByPhone } from '../db/db.js'
 import { metaCredentials } from './providers.js'
@@ -644,5 +651,43 @@ export async function listCallsForLead(rawPhone, limit = 25) {
   const waId = leadPhone(rawPhone)
   if (!waId) return []
   return CALLS().find({ waId }).sort({ createdAt: -1 }).limit(limit).toArray()
+}
+
+export async function saveCallRecording(callId, { audioBase64, mimeType = 'audio/webm', durationSec = 0 } = {}) {
+  if (!callId) throw new Error('callId is required')
+  if (!audioBase64 || typeof audioBase64 !== 'string') throw new Error('audioBase64 is required')
+
+  const stripped = audioBase64.replace(/^data:[^;]+;base64,/, '')
+  const buf = Buffer.from(stripped, 'base64')
+  if (!buf.length) throw new Error('Empty audio recording')
+  if (buf.length > 25 * 1024 * 1024) throw new Error('Recording exceeds 25 MB limit')
+
+  const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm'
+  const safeName = `${String(callId).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)}.${ext}`
+
+  await fs.promises.mkdir(RECORDINGS_DIR, { recursive: true })
+  await fs.promises.writeFile(path.join(RECORDINGS_DIR, safeName), buf)
+
+  const recordingUrl = `/uploads/recordings/${safeName}`
+  const now = new Date()
+  await CALLS().updateOne(
+    { callId },
+    {
+      $set: {
+        recordingUrl,
+        recordingMimeType: mimeType,
+        recordingSizeBytes: buf.length,
+        ...(durationSec > 0 ? { durationSec } : {}),
+        updatedAt: now,
+      },
+    }
+  )
+  const updated = await CALLS().findOne({ callId })
+  await recordEvent('whatsapp_call_recording', `Saved recording for ${callId} (${buf.length} bytes)`, {
+    callId,
+    recordingUrl,
+    bytes: buf.length,
+  }).catch(() => {})
+  return { recordingUrl, bytes: buf.length, call: updated }
 }
 

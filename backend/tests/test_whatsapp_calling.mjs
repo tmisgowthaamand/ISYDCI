@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import dotenv from 'dotenv'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +19,7 @@ import {
   getCallPermission,
   checkPermissionRequestRateLimit,
   initiateOutboundCall,
+  saveCallRecording,
 } from '../services/calling.js'
 
 const TEST_PHONE = '919999888777'
@@ -178,6 +180,19 @@ async function main() {
   )
   const r7d = await checkPermissionRequestRateLimit(TEST_PHONE, now)
   check(r7d.allowed === false && r7d.count7d === 2, 'Rate limit blocks 3rd request within 7 days')
+
+  // 8. Save call recording (.webm) and verify recordingUrl persisted + file written
+  const dummyBase64 = 'data:audio/webm;base64,' + Buffer.from('WEBM_TEST_AUDIO_BYTES').toString('base64')
+  const recRes = await saveCallRecording(TEST_CALL_ID_ANS, {
+    audioBase64: dummyBase64,
+    mimeType: 'audio/webm',
+    durationSec: 30,
+  })
+  const recDoc = await col('whatsapp_calls').findOne({ callId: TEST_CALL_ID_ANS })
+  const savedFile = path.resolve(__dirname, '../uploads/recordings', `${TEST_CALL_ID_ANS}.webm`)
+  check(recRes.recordingUrl === `/uploads/recordings/${TEST_CALL_ID_ANS}.webm`, 'saveCallRecording returns expected recordingUrl')
+  check(recDoc?.recordingUrl === recRes.recordingUrl && fs.existsSync(savedFile), 'Recording URL stored in DB and file written to disk')
+  fs.unlinkSync(savedFile)
 
   await cleanup()
   await closeDb()

@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiJson } from '../config/api.js'
+import { API_BASE_URL, apiJson } from '../config/api.js'
 
 function formatDuration(sec) {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function formatCallTime(d) {
+  if (!d) return ''
+  return new Date(d).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
 }
 
 /**
@@ -13,11 +24,14 @@ function formatDuration(sec) {
  *  - Requesting 72-hour outbound call permission (1/24h, 2/7d guarded by backend)
  *  - Initiating outbound WebRTC calls when permission is active
  *  - Answering / rejecting incoming WhatsApp calls via polling + RTCPeerConnection
- *  - Mute / Hangup during active calls
+ *  - Automatic two-way call audio recording (MediaRecorder + AudioContext) & playback
  */
 export default function CallControls({ phone, name }) {
   const [permission, setPermission] = useState({ allowed: false, status: 'none', expiresAt: null })
   const [activeCall, setActiveCall] = useState(null)
+  const [callHistory, setCallHistory] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [recording, setRecording] = useState(false)
   const [muted, setMuted] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -25,9 +39,105 @@ export default function CallControls({ phone, name }) {
 
   const pcRef = useRef(null)
   const streamRef = useRef(null)
+  const remoteStreamRef = useRef(null)
   const audioRef = useRef(null)
+  const recorderRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const chunksRef = useRef([])
+  const recordingCallIdRef = useRef(null)
+  const elapsedRef = useRef(0)
 
-  const cleanupMedia = () => {
+  useEffect(() => {
+    elapsedRef.current = elapsed
+  }, [elapsed])
+
+  const stopAndUploadRecording = () => {
+    const rec = recorderRef.current
+    const callId = recordingCallIdRef.current
+    if (!rec || rec.state === 'inactive') {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {})
+        audioCtxRef.current = null
+      }
+      setRecording(false)
+      return Promise.resolve()
+    }
+    return new Promise(resolve => {
+      const durationSec = elapsedRef.current
+      rec.onstop = async () => {
+        try {
+          const mimeType = rec.mimeType || 'audio/webm'
+          const blob = new Blob(chunksRef.current, { type: mimeType })
+          chunksRef.current = []
+          if (audioCtxRef.current) {
+            audioCtxRef.current.close().catch(() => {})
+            audioCtxRef.current = null
+          }
+          recorderRef.current = null
+          recordingCallIdRef.current = null
+          setRecording(false)
+
+          if (callId && blob.size > 0) {
+            const reader = new FileReader()
+            reader.onloadend = async () => {
+              try {
+                await apiJson(`/api/calls/${encodeURIComponent(callId)}/recording`, {
+                  method: 'POST',
+                  body: JSON.stringify({ audioBase64: reader.result, mimeType, durationSec }),
+                })
+                await loadLeadCallState()
+              } catch (_) {}
+              resolve()
+            }
+            reader.readAsDataURL(blob)
+            return
+          }
+        } catch (_) {}
+        setRecording(false)
+        resolve()
+      }
+      try {
+        rec.stop()
+      } catch (_) {
+        setRecording(false)
+        resolve()
+      }
+    })
+  }
+
+  const startRecording = callId => {
+    if (!callId || recorderRef.current || typeof MediaRecorder === 'undefined') return
+    if (!streamRef.current && !remoteStreamRef.current) return
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      const ctx = new AudioCtx()
+      const dest = ctx.createMediaStreamDestination()
+      if (streamRef.current?.getAudioTracks().length) {
+        ctx.createMediaStreamSource(streamRef.current).connect(dest)
+      }
+      if (remoteStreamRef.current?.getAudioTracks().length) {
+        ctx.createMediaStreamSource(remoteStreamRef.current).connect(dest)
+      }
+      const preferred = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : ''
+      const rec = preferred ? new MediaRecorder(dest.stream, { mimeType: preferred }) : new MediaRecorder(dest.stream)
+      chunksRef.current = []
+      rec.ondataavailable = evt => {
+        if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data)
+      }
+      rec.start(1000)
+      audioCtxRef.current = ctx
+      recorderRef.current = rec
+      recordingCallIdRef.current = callId
+      setRecording(true)
+    } catch (_) {}
+  }
+
+  const cleanupMedia = async () => {
+    await stopAndUploadRecording()
     if (pcRef.current) {
       pcRef.current.close()
       pcRef.current = null
@@ -36,6 +146,7 @@ export default function CallControls({ phone, name }) {
       streamRef.current.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
+    remoteStreamRef.current = null
     setMuted(false)
     setElapsed(0)
   }
@@ -45,7 +156,9 @@ export default function CallControls({ phone, name }) {
     try {
       const res = await apiJson(`/api/calls/lead/${encodeURIComponent(phone)}`)
       if (res?.permission) setPermission(res.permission)
-      const live = (res?.calls || []).find(c => ['ringing', 'pre_accepted', 'accepted', 'active'].includes(c.status))
+      const list = res?.calls || []
+      setCallHistory(list)
+      const live = list.find(c => ['ringing', 'pre_accepted', 'accepted', 'active'].includes(c.status))
       if (live) {
         setActiveCall(live)
         // If an outbound call was just answered by the user, apply remote SDP answer
@@ -58,6 +171,9 @@ export default function CallControls({ phone, name }) {
         ) {
           await pcRef.current.setRemoteDescription({ type: 'answer', sdp: live.sdpSession.answer }).catch(() => {})
         }
+        if (['accepted', 'active'].includes(live.status) && !recorderRef.current) {
+          startRecording(live.callId)
+        }
       } else if (activeCall) {
         setActiveCall(null)
         cleanupMedia()
@@ -68,6 +184,7 @@ export default function CallControls({ phone, name }) {
   useEffect(() => {
     setError('')
     setActiveCall(null)
+    setShowHistory(false)
     cleanupMedia()
     loadLeadCallState()
     const id = setInterval(loadLeadCallState, 3000)
@@ -94,8 +211,12 @@ export default function CallControls({ phone, name }) {
     streamRef.current = stream
     stream.getTracks().forEach(track => pc.addTrack(track, stream))
     pc.ontrack = evt => {
-      if (audioRef.current && evt.streams?.[0]) {
-        audioRef.current.srcObject = evt.streams[0]
+      if (evt.streams?.[0]) {
+        remoteStreamRef.current = evt.streams[0]
+        if (audioRef.current) audioRef.current.srcObject = evt.streams[0]
+        if (activeCall?.callId && !recorderRef.current) {
+          startRecording(activeCall.callId)
+        }
       }
     }
     pcRef.current = pc
@@ -149,7 +270,7 @@ export default function CallControls({ phone, name }) {
       })
       if (res?.call) setActiveCall(res.call)
     } catch (err) {
-      cleanupMedia()
+      await cleanupMedia()
       setError(err.message || 'Failed to start call')
     } finally {
       setBusy(false)
@@ -173,9 +294,12 @@ export default function CallControls({ phone, name }) {
         method: 'POST',
         body: JSON.stringify({ sdpAnswer }),
       })
-      if (res?.call) setActiveCall(res.call)
+      if (res?.call) {
+        setActiveCall(res.call)
+        startRecording(res.call.callId)
+      }
     } catch (err) {
-      cleanupMedia()
+      await cleanupMedia()
       setError(err.message || 'Failed to answer call')
     } finally {
       setBusy(false)
@@ -188,7 +312,7 @@ export default function CallControls({ phone, name }) {
     try {
       await apiJson(`/api/calls/${encodeURIComponent(activeCall.callId)}/reject`, { method: 'POST' })
       setActiveCall(null)
-      cleanupMedia()
+      await cleanupMedia()
     } catch (err) {
       setError(err.message || 'Failed to reject call')
     } finally {
@@ -200,9 +324,10 @@ export default function CallControls({ phone, name }) {
     if (!activeCall?.callId) return
     setBusy(true)
     try {
+      await cleanupMedia()
       await apiJson(`/api/calls/${encodeURIComponent(activeCall.callId)}/terminate`, { method: 'POST' })
       setActiveCall(null)
-      cleanupMedia()
+      await loadLeadCallState()
     } catch (err) {
       setError(err.message || 'Failed to end call')
     } finally {
@@ -220,7 +345,7 @@ export default function CallControls({ phone, name }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="relative flex items-center gap-1.5 flex-wrap">
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
       {!activeCall && (
@@ -231,7 +356,7 @@ export default function CallControls({ phone, name }) {
               onClick={startOutboundCall}
               disabled={busy}
               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-2xs cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
-              title={`Call ${name || phone} (permission active until ${permission.expiresAt ? new Date(permission.expiresAt).toLocaleString() : '72h'})`}
+              title={`Call ${name || phone} (permission active until ${permission.expiresAt ? new Date(permission.expiresAt).toLocaleString() : 'permanent'})`}
             >
               <span>📞</span>
               <span>Call</span>
@@ -275,8 +400,9 @@ export default function CallControls({ phone, name }) {
 
       {activeCall && !(activeCall.direction === 'inbound' && activeCall.status === 'ringing') && (
         <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 px-2 py-1 rounded-lg">
-          <span className="text-[11px] font-bold text-emerald-900">
+          <span className="text-[11px] font-bold text-emerald-900 inline-flex items-center gap-1">
             {activeCall.status === 'ringing' ? '🔔 Ringing…' : `🎙️ ${formatDuration(elapsed)}`}
+            {recording && <span className="text-[9px] font-black text-rose-600">● REC</span>}
           </span>
           <button
             type="button"
@@ -296,6 +422,53 @@ export default function CallControls({ phone, name }) {
         </div>
       )}
 
+      {callHistory.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowHistory(v => !v)}
+          className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold cursor-pointer"
+          title="View call records & audio recordings"
+        >
+          📋 Calls ({callHistory.length})
+        </button>
+      )}
+
+      {showHistory && (
+        <div className="absolute right-0 top-full mt-1.5 w-80 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2.5 space-y-2">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+            <span className="text-xs font-black text-slate-800">Call Records & Recordings</span>
+            <button
+              type="button"
+              onClick={() => setShowHistory(false)}
+              className="text-xs text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+          {callHistory.map(c => (
+            <div key={c.callId} className="p-2 rounded-lg bg-slate-50 border border-slate-100 space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-slate-800">
+                  {c.direction === 'inbound' ? '📲 Inbound' : '📞 Outbound'} · {c.status}
+                </span>
+                <span className="font-mono text-slate-500">{c.durationSec ? `${c.durationSec}s` : '0s'}</span>
+              </div>
+              <div className="text-[10px] text-slate-400">{formatCallTime(c.startedAt || c.createdAt)}</div>
+              {c.recordingUrl ? (
+                <audio
+                  controls
+                  preload="none"
+                  src={`${API_BASE_URL}${c.recordingUrl}`}
+                  className="w-full h-7 mt-1"
+                />
+              ) : (
+                <div className="text-[10px] text-slate-400 italic">No audio recording</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {error && (
         <span className="text-[10px] text-rose-600 font-semibold max-w-[200px] truncate" title={error}>
           {error}
@@ -304,4 +477,3 @@ export default function CallControls({ phone, name }) {
     </div>
   )
 }
-

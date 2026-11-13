@@ -10,6 +10,7 @@ import {
   listCallsForLead,
   preAcceptCall,
   rejectCall,
+  saveCallRecording,
   sendCallPermissionRequest,
   terminateCall,
   updateCallingSettings,
@@ -158,6 +159,17 @@ router.post('/:callId/terminate', async (req, res) => {
     res.json({ success: true, ...result })
   } catch (err) {
     res.status(err.status || 400).json({ success: false, message: err.message, metaError: err.metaError })
+  }
+})
+
+// POST /api/calls/:callId/recording — upload mixed WebRTC call audio recording (.webm)
+router.post('/:callId/recording', async (req, res) => {
+  try {
+    const { audioBase64, mimeType, durationSec } = req.body || {}
+    const result = await saveCallRecording(req.params.callId, { audioBase64, mimeType, durationSec })
+    res.json({ success: true, ...result })
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message })
   }
 })
 
