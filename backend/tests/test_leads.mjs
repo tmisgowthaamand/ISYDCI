@@ -25,12 +25,16 @@ const j = async (p, opts = {}) => {
   const res = await fetch(BASE + p, { ...opts, headers: { ...H, ...(opts.headers || {}) } })
   return { status: res.status, body: await res.json().catch(() => ({})) }
 }
-const hook = msg =>
-  fetch(BASE + '/api/whatsapp/webhook', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: 'WABA', changes: [{ field: 'messages', value: { messaging_product: 'whatsapp', metadata: {}, contacts: [{ wa_id: PHONE, profile: { name: 'Lead Tester' } }], messages: [{ from: PHONE, id: `wamid.lead.${Date.now()}.${Math.random()}`, timestamp: `${Date.now()}`, ...msg }] } }] }] }),
-  })
+const hook = async msg => {
+  const payload = JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: 'WABA', changes: [{ field: 'messages', value: { messaging_product: 'whatsapp', metadata: {}, contacts: [{ wa_id: PHONE, profile: { name: 'Lead Tester' } }], messages: [{ from: PHONE, id: `wamid.lead.${Date.now()}.${Math.random()}`, timestamp: `${Date.now()}`, ...msg }] } }] }] })
+  const secret = env.WHATSAPP_APP_SECRET || env.APP_SECRET || process.env.WHATSAPP_APP_SECRET || process.env.APP_SECRET
+  const headers = { 'Content-Type': 'application/json' }
+  if (secret) {
+    const c = await import('crypto')
+    headers['X-Hub-Signature-256'] = 'sha256=' + c.createHmac('sha256', secret).update(payload).digest('hex')
+  }
+  return fetch(BASE + '/api/whatsapp/webhook', { method: 'POST', headers, body: payload })
+}
 
 console.log(`Testing ${BASE} with lead +${PHONE}`)
 

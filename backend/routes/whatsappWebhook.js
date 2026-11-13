@@ -11,6 +11,7 @@ import { registerFromFlow, parseDob, formatPhoneDisplay } from './flowEndpoint.j
 import { logWhatsAppInbound, logWhatsAppOutbound } from '../utils/liveLogger.js'
 import { upsertLeadFromInbound, recordOutbound, markCardIssued, updateMessageStatus } from '../services/leads.js'
 import { recordEvent } from '../services/audit.js'
+import { verifyMetaSignature, handleCallsWebhook, recordCallPermissionReply } from '../services/calling.js'
 
 const router = express.Router()
 
@@ -355,6 +356,12 @@ function alreadyHandled(id) {
 
 router.post('/', async (req, res) => {
   const time = getTimestamp()
+  const sig = verifyMetaSignature(req.rawBody || JSON.stringify(req.body || {}), req.headers['x-hub-signature-256'])
+  if (!sig.valid) {
+    console.warn(`⚠️ [WHATSAPP WEBHOOK SIGNATURE INVALID ${time}] ${sig.reason}`)
+    return res.status(401).json({ error: 'Invalid signature' })
+  }
+
   const body = req.body || {}
   res.status(200).send('EVENT_RECEIVED')
 
@@ -362,6 +369,12 @@ router.post('/', async (req, res) => {
     const change = body.entry?.[0]?.changes?.[0]
     const value = change?.value
     if (!value) return
+
+    if (change.field === 'calls') {
+      console.log(`📞 [CALLS WEBHOOK ${time}] ${JSON.stringify(value.calls?.[0]?.event || value.statuses?.[0]?.status || 'event')}`)
+      await handleCallsWebhook(value)
+      return
+    }
 
     if (['message_template_status_update', 'message_template_components_update', 'template_category_update'].includes(change.field)) {
       const { onTemplateStatusWebhook } = await import('../services/templates.js')
@@ -407,6 +420,13 @@ router.post('/', async (req, res) => {
         }
         console.log(`   🎯 FLOW COMPLETED  payload=${JSON.stringify(payload)}`)
         await handleFlowCompletion(sender, payload)
+      }
+
+      // A2. Call permission reply
+      else if (msgType === 'interactive' && msg.interactive?.type === 'call_permission_reply') {
+        const reply = msg.interactive.call_permission_reply || {}
+        console.log(`   📞 CALL PERMISSION REPLY  +${sender} -> ${reply.response}`)
+        await recordCallPermissionReply(sender, reply.response, reply)
       }
 
       // B. List row / reply button

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiJson } from '../config/api.js'
 import { StatusBadge, SOURCE_LABEL } from './AdminLeads.jsx'
+import CallControls from '../components/CallControls.jsx'
 
 // Timestamp & Date Formatting Helpers
 const formatDate = d => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '')
@@ -865,6 +866,7 @@ export default function AdminInbox() {
 
                 {/* Right: Clean Action Controls */}
                 <div className="flex items-center gap-1.5 shrink-0 justify-end flex-wrap">
+                  <CallControls phone={selected.phone} name={selected.name || selected.whatsappName} />
                   {/* Status Dropdown */}
                   <select
                     value={selected.status}

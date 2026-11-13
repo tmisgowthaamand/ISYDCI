@@ -9,6 +9,7 @@ import flowEndpointRouter from './routes/flowEndpoint.js'
 import whatsappWebhookRouter from './routes/whatsappWebhook.js'
 import leadsRouter from './routes/leads.js'
 import templatesRouter from './routes/templates.js'
+import callsRouter from './routes/calls.js'
 import devRouter from './routes/dev.js'
 import { connectDb } from './db/mongo.js'
 import { bootstrapFromJson } from './db/db.js'
@@ -39,7 +40,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Client'],
 }))
 
-app.use(express.json({ limit: '50mb' }))
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, _res, buf) => {
+    req.rawBody = buf
+  },
+}))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')))
 app.use(optionalAuth)
@@ -145,6 +151,7 @@ app.use('/api', generalApiLimiter)
 app.use('/api/auth', authRouter)
 app.use('/api/leads', leadsRouter)
 app.use('/api/templates', templatesRouter)
+app.use('/api/calls', callsRouter)
 app.use('/api/dev', devRouter)
 app.use('/api/members', membersRouter)
 app.use('/api', membersRouter) // exposes /api/stats

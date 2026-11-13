@@ -103,5 +103,15 @@ async function ensureIndexes(d) {
       { key: { createdAt: 1 }, expireAfterSeconds: 7 * 24 * 3600 }, // keep 7 days
       { key: { kind: 1 } },
     ]),
+    d.collection('whatsapp_calls').createIndexes([
+      { key: { callId: 1 }, unique: true },
+      { key: { waId: 1, createdAt: -1 } },
+      { key: { status: 1, updatedAt: -1 } },
+      { key: { createdAt: -1 } },
+    ]),
+    d.collection('call_permissions').createIndexes([
+      { key: { waId: 1 }, unique: true },
+      { key: { permissionExpiresAt: 1 } },
+    ]),
   ])
 }
