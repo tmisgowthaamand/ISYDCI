@@ -46,11 +46,16 @@ export default function CallControls({ phone, name }) {
   const audioDestRef = useRef(null)
   const chunksRef = useRef([])
   const recordingCallIdRef = useRef(null)
+  const activeCallIdRef = useRef(null)
   const elapsedRef = useRef(0)
 
   useEffect(() => {
     elapsedRef.current = elapsed
   }, [elapsed])
+
+  useEffect(() => {
+    activeCallIdRef.current = activeCall?.callId || null
+  }, [activeCall?.callId])
 
   const stopAndUploadRecording = () => {
     const rec = recorderRef.current
@@ -228,8 +233,8 @@ export default function CallControls({ phone, name }) {
         if (evt.streams[0].getAudioTracks().length && audioCtxRef.current && audioDestRef.current) {
           audioCtxRef.current.createMediaStreamSource(evt.streams[0]).connect(audioDestRef.current)
         }
-        if (activeCall?.callId && !recorderRef.current) {
-          startRecording(activeCall.callId)
+        if (activeCallIdRef.current && !recorderRef.current) {
+          startRecording(activeCallIdRef.current)
         }
       }
     }
@@ -282,7 +287,10 @@ export default function CallControls({ phone, name }) {
         method: 'POST',
         body: JSON.stringify({ phone, sdpOffer }),
       })
-      if (res?.call) setActiveCall(res.call)
+      if (res?.call) {
+        activeCallIdRef.current = res.call.callId
+        setActiveCall(res.call)
+      }
     } catch (err) {
       await cleanupMedia()
       setError(err.message || 'Failed to start call')
@@ -469,12 +477,23 @@ export default function CallControls({ phone, name }) {
               </div>
               <div className="text-[10px] text-slate-400">{formatCallTime(c.startedAt || c.createdAt)}</div>
               {c.recordingUrl ? (
-                <audio
-                  controls
-                  preload="none"
-                  src={`${API_BASE_URL}${c.recordingUrl}`}
-                  className="w-full h-7 mt-1"
-                />
+                <div className="space-y-1 mt-1">
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={`${API_BASE_URL}${c.recordingUrl}`}
+                    className="w-full h-7"
+                  />
+                  <div className="flex justify-end">
+                    <a
+                      href={`${API_BASE_URL}${c.recordingUrl}`}
+                      download={`isydci-call-${c.waId}-${c.callId.slice(-10)}.webm`}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                    >
+                      ⬇ Download Recording
+                    </a>
+                  </div>
+                </div>
               ) : (
                 <div className="text-[10px] text-slate-400 italic">No audio recording</div>
               )}

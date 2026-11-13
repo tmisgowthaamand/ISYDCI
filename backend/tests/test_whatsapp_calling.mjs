@@ -182,7 +182,7 @@ async function main() {
   check(r7d.allowed === false && r7d.count7d === 2, 'Rate limit blocks 3rd request within 7 days')
 
   // 8. Save call recording (.webm) and verify recordingUrl persisted + file written
-  const dummyBase64 = 'data:audio/webm;base64,' + Buffer.from('WEBM_TEST_AUDIO_BYTES').toString('base64')
+  const dummyBase64 = 'data:audio/webm;base64,' + Buffer.alloc(128, 0x41).toString('base64')
   const recRes = await saveCallRecording(TEST_CALL_ID_ANS, {
     audioBase64: dummyBase64,
     mimeType: 'audio/webm',

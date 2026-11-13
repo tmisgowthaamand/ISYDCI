@@ -659,7 +659,7 @@ export async function saveCallRecording(callId, { audioBase64, mimeType = 'audio
 
   const stripped = audioBase64.replace(/^data:[^;]+;base64,/, '')
   const buf = Buffer.from(stripped, 'base64')
-  if (!buf.length) throw new Error('Empty audio recording')
+  if (buf.length < 100) throw new Error('Audio recording too small or empty')
   if (buf.length > 25 * 1024 * 1024) throw new Error('Recording exceeds 25 MB limit')
 
   const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm'
