@@ -481,41 +481,60 @@ export default function CallControls({ phone, name }) {
 
       {showHistory && (() => {
         const telecallers = Array.from(new Set(callHistory.map(c => c.telecaller_id).filter(Boolean)))
+        const inboundCount = callHistory.filter(c => (c.call_direction || c.direction) === 'inbound').length
+        const outboundCount = callHistory.filter(c => (c.call_direction || c.direction) !== 'inbound').length
+        const recordedCount = callHistory.filter(c => (c.recording_status || (c.recordingUrl ? 'ready' : 'none')) === 'ready').length
         const filteredCalls = callHistory.filter(c => {
-          const dir = c.call_direction || c.direction
+          const dir = (c.call_direction || c.direction) === 'inbound' ? 'inbound' : 'outbound'
           if (directionFilter !== 'all' && dir !== directionFilter) return false
           if (telecallerFilter !== 'all' && (c.telecaller_id || '') !== telecallerFilter) return false
           return true
         })
         const authToken = getAuthToken()
         return (
-          <div className="absolute right-0 top-full mt-1.5 w-96 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-3 space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="text-xs font-black text-slate-800">Call Records & Recordings</span>
+          <div className="absolute right-0 top-full mt-1.5 w-[420px] max-h-[460px] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
+            <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border-b border-slate-200">
+              <div>
+                <div className="text-xs font-black text-slate-900">Call Records & Recordings</div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  {callHistory.length} total · {inboundCount} inbound · {outboundCount} outbound · {recordedCount} recorded
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowHistory(false)}
-                className="text-xs text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-xs text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 font-bold cursor-pointer"
+                aria-label="Close call records"
               >
                 ✕
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <select
-                value={directionFilter}
-                onChange={e => setDirectionFilter(e.target.value)}
-                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700"
-                aria-label="Filter by direction"
-              >
-                <option value="all">All Directions</option>
-                <option value="inbound">Inbound</option>
-                <option value="outbound">Outbound</option>
-              </select>
+            <div className="px-3.5 py-2 border-b border-slate-100 flex items-center gap-2 bg-white">
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-bold">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'inbound', label: `Inbound (${inboundCount})` },
+                  { id: 'outbound', label: `Outbound (${outboundCount})` },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setDirectionFilter(tab.id)}
+                    className={`px-2 py-1 rounded-md transition cursor-pointer ${
+                      directionFilter === tab.id
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               <select
                 value={telecallerFilter}
                 onChange={e => setTelecallerFilter(e.target.value)}
-                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700"
+                className="ml-auto px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700"
                 aria-label="Filter by telecaller"
               >
                 <option value="all">All Telecallers</option>
@@ -525,61 +544,82 @@ export default function CallControls({ phone, name }) {
               </select>
             </div>
 
-            {filteredCalls.length === 0 ? (
-              <div className="text-[11px] text-slate-400 text-center py-4">No matching call records</div>
-            ) : (
-              filteredCalls.map(c => {
-                const dir = (c.call_direction || c.direction) === 'inbound' ? 'Inbound' : 'Outbound'
-                const dur = c.duration_seconds ?? c.durationSec ?? 0
-                const isAttended = Boolean(c.attended ?? c.answeredAt)
-                const recStatus = c.recording_status || (c.recordingUrl ? 'ready' : 'none')
-                const streamUrl = `${API_BASE_URL}/api/calls/${encodeURIComponent(c.callId)}/recording?token=${encodeURIComponent(authToken)}`
-                return (
-                  <div key={c.callId} className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${dir === 'Inbound' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {dir}
-                        </span>
-                        {!isAttended && (
-                          <span className="px-1.5 py-0.5 rounded font-bold text-[10px] bg-slate-200 text-slate-700">
-                            Unanswered
+            <div className="p-3 space-y-2.5 overflow-y-auto">
+              {filteredCalls.length === 0 ? (
+                <div className="text-[11px] text-slate-400 text-center py-6">No matching call records</div>
+              ) : (
+                filteredCalls.map(c => {
+                  const isInbound = (c.call_direction || c.direction) === 'inbound'
+                  const dir = isInbound ? 'Inbound' : 'Outbound'
+                  const dur = c.duration_seconds ?? c.durationSec ?? 0
+                  const isAttended = Boolean(c.attended ?? c.answeredAt)
+                  const recStatus = c.recording_status || (c.recordingUrl ? 'ready' : 'none')
+                  const streamUrl = `${API_BASE_URL}/api/calls/${encodeURIComponent(c.callId)}/recording?token=${encodeURIComponent(authToken)}`
+                  const ext = String(c.recordingMimeType || '').includes('ogg') ? 'ogg' : 'webm'
+                  const statusLabel = isAttended
+                    ? 'Answered'
+                    : c.status === 'failed'
+                      ? 'Failed'
+                      : c.status === 'rejected'
+                        ? 'Rejected'
+                        : 'Unanswered'
+                  const statusTone = isAttended
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : c.status === 'failed' || c.status === 'rejected'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
+
+                  return (
+                    <div key={c.callId} className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                            isInbound
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                          }`}>
+                            {isInbound ? '↙ Inbound' : '↗ Outbound'}
                           </span>
-                        )}
-                        {c.telecaller_id && (
-                          <span className="text-[10px] font-semibold text-slate-500">· {c.telecaller_id}</span>
-                        )}
-                      </div>
-                      <span className="font-mono text-slate-500 shrink-0">{dur}s</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400">{formatCallTime(c.startedAt || c.createdAt)}</div>
-
-                    {isAttended && recStatus === 'ready' && (
-                      <div className="space-y-1 pt-0.5">
-                        <audio controls preload="none" src={streamUrl} className="w-full h-7" />
-                        <div className="flex justify-end">
-                          <a
-                            href={streamUrl}
-                            download={`isydci-call-${c.waId}-${c.callId.slice(-10)}.webm`}
-                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
-                          >
-                            ⬇ Download Recording
-                          </a>
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${statusTone}`}>
+                            {statusLabel}
+                          </span>
+                          {c.telecaller_id && (
+                            <span className="text-[10px] font-semibold text-slate-500">· {c.telecaller_id}</span>
+                          )}
                         </div>
+                        <span className="font-mono text-[11px] font-bold text-slate-700 shrink-0">{formatDuration(dur)}</span>
                       </div>
-                    )}
 
-                    {isAttended && recStatus === 'pending' && (
-                      <div className="text-[10px] text-amber-600 font-semibold italic">Processing recording...</div>
-                    )}
+                      <div className="text-[10px] text-slate-400 font-medium">{formatCallTime(c.startedAt || c.createdAt)}</div>
 
-                    {isAttended && recStatus === 'failed' && (
-                      <div className="text-[10px] text-rose-500 italic">Recording unavailable</div>
-                    )}
-                  </div>
-                )
-              })
-            )}
+                      {isAttended && recStatus === 'ready' && (
+                        <div className="space-y-1.5 pt-1 border-t border-slate-200/70">
+                          <audio controls preload="none" src={streamUrl} className="w-full h-8" />
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-emerald-700 font-semibold">● Recording ready</span>
+                            <a
+                              href={streamUrl}
+                              download={`isydci-${dir.toLowerCase()}-${c.waId}-${c.callId.slice(-8)}.${ext}`}
+                              className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold inline-flex items-center gap-1 border border-blue-200"
+                            >
+                              ⬇ Download
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {isAttended && recStatus === 'pending' && (
+                        <div className="text-[10px] text-amber-600 font-semibold italic pt-0.5">Processing recording...</div>
+                      )}
+
+                      {isAttended && recStatus === 'failed' && (
+                        <div className="text-[10px] text-rose-500 font-medium italic pt-0.5">Recording unavailable</div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         )
       })()}

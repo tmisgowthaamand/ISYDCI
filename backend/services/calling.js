@@ -381,7 +381,7 @@ export async function initiateOutboundCall(rawPhone, sdpOffer, { bypassPermissio
 
   await CALLS().updateOne({ callId }, { $set: doc }, { upsert: true })
   logWhatsAppOutbound({ recipient: waId, kind: 'call/outbound', messageId: callId })
-  await logCallMessageInThread(waId, `📞 Outbound WhatsApp call started (${callId})`, callId, 'out')
+  await logCallMessageInThread(waId, '📞 Outbound WhatsApp call initiated', callId, 'out')
   await recordEvent('whatsapp_call', `Outbound call initiated ${callId} -> +${waId}`, doc).catch(() => {})
   emitCallEvent('call_update', { call: doc })
 
@@ -751,7 +751,7 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
           updatedAt: now,
         }
         await CALLS().updateOne({ callId }, { $set: doc }, { upsert: true })
-        await logCallMessageInThread(waId, `📞 Incoming WhatsApp call (${callId})`, callId, 'in')
+        await logCallMessageInThread(waId, '📞 Incoming WhatsApp call', callId, 'in')
         await recordEvent('whatsapp_call', `Inbound call connect ${callId} from +${waId}`, call).catch(() => {})
         emitCallEvent('incoming_call', { call: doc })
       }
@@ -821,10 +821,11 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
       }
 
       const updated = await CALLS().findOne({ callId })
+      const dirLabel = (updated?.call_direction || updated?.direction) === 'outbound' ? 'Outbound' : 'Inbound'
       const summaryText =
         finalStatus === 'missed'
-          ? `📵 Missed WhatsApp call (${endReason})`
-          : `📞 WhatsApp call ended · ${durationSec}s (${finalStatus})`
+          ? `📵 Missed ${dirLabel.toLowerCase()} WhatsApp call`
+          : `📞 ${dirLabel} WhatsApp call · ${durationSec}s (${attended ? 'Answered' : finalStatus})`
       if (waId) {
         await logCallMessageInThread(waId, summaryText, callId, existing?.direction === 'outbound' ? 'out' : 'in')
         if (finalStatus === 'missed') {
