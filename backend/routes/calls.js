@@ -4,6 +4,7 @@ import { requireAuth, ROLES } from '../services/auth.js'
 import {
   acceptCall,
   callEvents,
+  canAdminReceiveCall,
   getCallPermission,
   getCallingSettings,
   initiateOutboundCall,
@@ -43,26 +44,29 @@ router.post('/settings', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (req, res) 
   }
 })
 
-// GET /api/calls/active — list ringing/active calls for CRM UI polling
-router.get('/active', async (_req, res) => {
+// GET /api/calls/active — list ringing/active calls routed to the signed-in telecaller (or all for developer ?scope=all)
+router.get('/active', async (req, res) => {
   try {
-    const calls = await listActiveCalls()
+    const scopeAll = req.query.scope === 'all' && req.admin?.role === ROLES.SUPER_SUPER_ADMIN
+    const calls = await listActiveCalls({ admin: req.admin, scopeAll })
     res.json({ success: true, calls })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
 })
 
-// GET /api/calls/events — Server-Sent Events stream for real-time incoming calls & SDP answers
+// GET /api/calls/events — Server-Sent Events stream filtered by telecaller routing
 router.get('/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders?.()
 
-  res.write(`event: connected\ndata: ${JSON.stringify({ ok: true })}\n\n`)
+  const scopeAll = req.query.scope === 'all' && req.admin?.role === ROLES.SUPER_SUPER_ADMIN
+  res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, telecaller: req.admin?.username || null })}\n\n`)
 
   const onEvent = evt => {
+    if (!scopeAll && evt?.call && !canAdminReceiveCall(evt.call, req.admin)) return
     res.write(`event: call\ndata: ${JSON.stringify(evt)}\n\n`)
   }
   callEvents.on('call_event', onEvent)

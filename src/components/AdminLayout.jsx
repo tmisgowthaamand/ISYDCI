@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom'
+import GlobalIncomingCallBanner from './GlobalIncomingCallBanner.jsx'
 
 export default function AdminLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -318,6 +319,7 @@ export default function AdminLayout() {
         </main>
       </div>
 
+      <GlobalIncomingCallBanner />
     </div>
   )
 }

@@ -20,6 +20,7 @@ import {
   checkPermissionRequestRateLimit,
   initiateOutboundCall,
   saveCallRecording,
+  canAdminReceiveCall,
   PROTECTED_RECORDINGS_DIR,
 } from '../services/calling.js'
 
@@ -299,6 +300,20 @@ async function main() {
   } catch (_) {}
 
   if (fs.existsSync(metaFile)) fs.unlinkSync(metaFile)
+
+  // 11. Telecaller lead-routing access control
+  check(
+    canAdminReceiveCall({ callId: 'c1', telecaller_id: 'priya' }, { username: 'priya', role: 'super_admin' }) === true,
+    'Assigned call routes to matching telecaller'
+  )
+  check(
+    canAdminReceiveCall({ callId: 'c1', telecaller_id: 'priya' }, { username: 'rahul', role: 'super_admin' }) === false,
+    'Assigned call is hidden from other telecallers'
+  )
+  check(
+    canAdminReceiveCall({ callId: 'c2', telecaller_id: null }, { username: 'rahul', role: 'super_admin' }) === true,
+    'Unassigned call routes to available telecaller'
+  )
 
   await cleanup()
   await closeDb()

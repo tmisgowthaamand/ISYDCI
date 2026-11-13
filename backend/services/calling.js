@@ -732,6 +732,7 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
           call_direction: direction,
           attended: false,
           telecaller_id: existing?.telecaller_id || lead?.assignedTo || null,
+          leadName: lead?.name || lead?.whatsappName || member?.name || null,
           status: 'ringing',
           sdpSession: { type: sdpType, offer: sdp, answer: null },
           startedAt: now,
@@ -889,12 +890,22 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
 
 // ---------------------------------------------------------------- CRM Query Helpers
 
-export async function listActiveCalls() {
-  return CALLS()
+export function canAdminReceiveCall(call, admin, { includeUnassigned = true } = {}) {
+  if (!call) return false
+  const assigned = String(call.telecaller_id || '').trim().toLowerCase()
+  if (!assigned) return includeUnassigned
+  const username = String(admin?.username || '').trim().toLowerCase()
+  return Boolean(username && assigned === username)
+}
+
+export async function listActiveCalls({ admin = null, scopeAll = false } = {}) {
+  const calls = await CALLS()
     .find({ status: { $in: ['ringing', 'pre_accepted', 'accepted', 'active'] } })
     .sort({ createdAt: -1 })
     .limit(20)
     .toArray()
+  if (!admin || scopeAll) return calls
+  return calls.filter(c => canAdminReceiveCall(c, admin))
 }
 
 export async function listCallsForLead(rawPhone, { telecallerId, direction, limit = 50 } = {}) {
