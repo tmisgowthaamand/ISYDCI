@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { apiJson } from '../config/api.js'
+import { API_BASE_URL, apiJson, getAuthToken } from '../config/api.js'
 import { StatusBadge, SOURCE_LABEL } from './AdminLeads.jsx'
 import CallControls from '../components/CallControls.jsx'
 
@@ -186,6 +186,75 @@ const groupMessagesWithDividers = messages => {
   return items
 }
 
+function formatCallDur(sec = 0) {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function CallLogBubbleContent({ m, isOutbound, call }) {
+  const cleanText = String(m.text || '').replace(/\s*\(wacid\.[^)]+\)/g, '').trim()
+  const isInitialEvent = /started|initiated|incoming/i.test(cleanText) && !/ended|missed|·/i.test(cleanText)
+  const isAttended = Boolean(call?.attended ?? call?.answeredAt)
+  const recStatus = call?.recording_status || (call?.recordingUrl ? 'ready' : 'none')
+  const dur = call?.duration_seconds ?? call?.durationSec ?? 0
+  const dirLabel = (call?.call_direction || call?.direction) === 'inbound' ? '↙ Inbound Call' : '↗ Outbound Call'
+  const authToken = getAuthToken()
+  const streamUrl = call?.callId
+    ? `${API_BASE_URL}/api/calls/${encodeURIComponent(call.callId)}/recording?token=${encodeURIComponent(authToken)}`
+    : ''
+  const ext = String(call?.recordingMimeType || '').includes('ogg') ? 'ogg' : 'webm'
+
+  return (
+    <div className="space-y-1.5 min-w-[230px]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold text-[12.5px]">{cleanText || dirLabel}</span>
+        {call && !isInitialEvent && (
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+            isOutbound ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {formatCallDur(dur)}
+          </span>
+        )}
+      </div>
+
+      {call && !isInitialEvent && isAttended && recStatus === 'ready' && streamUrl && (
+        <div className={`pt-1.5 border-t space-y-1.5 ${isOutbound ? 'border-white/25' : 'border-slate-300/70'}`}>
+          <audio controls preload="none" src={streamUrl} className="w-full h-8" />
+          <div className="flex items-center justify-between text-[10px]">
+            <span className={isOutbound ? 'text-blue-100 font-semibold' : 'text-emerald-700 font-semibold'}>
+              ● Live call recording ready
+            </span>
+            <a
+              href={streamUrl}
+              download={`isydci-call-${call.waId || 'lead'}-${call.callId.slice(-8)}.${ext}`}
+              className={`px-2 py-0.5 rounded font-bold inline-flex items-center gap-1 ${
+                isOutbound
+                  ? 'bg-white text-[#007AFF] hover:bg-blue-50'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              ⬇ Download
+            </a>
+          </div>
+        </div>
+      )}
+
+      {call && !isInitialEvent && isAttended && recStatus === 'pending' && (
+        <div className={`text-[10px] italic ${isOutbound ? 'text-blue-100' : 'text-amber-700'}`}>
+          Processing live call recording...
+        </div>
+      )}
+
+      {call && !isInitialEvent && !isAttended && (
+        <div className={`text-[10px] font-semibold ${isOutbound ? 'text-blue-100' : 'text-slate-500'}`}>
+          Unanswered call (no recording)
+        </div>
+      )}
+    </div>
+  )
+}
+
 // CRM · Omnichannel Live Inbox — Blue & White iOS Style Desk
 export default function AdminInbox() {
   const [params, setParams] = useSearchParams()
@@ -198,6 +267,7 @@ export default function AdminInbox() {
   const [labels, setLabels] = useState({})
   const [selected, setSelected] = useState(null)
   const [messages, setMessages] = useState([])
+  const [leadCalls, setLeadCalls] = useState({})
   const [reply, setReply] = useState('')
   const [replyImage, setReplyImage] = useState(null) // { url, templateName }
   const [note, setNote] = useState('')
@@ -245,9 +315,17 @@ export default function AdminInbox() {
   const openLead = async phone => {
     try {
       setError('')
-      const d = await apiJson(`/api/leads/${phone}`)
+      const [d, cRes] = await Promise.all([
+        apiJson(`/api/leads/${phone}`),
+        apiJson(`/api/calls/lead/${encodeURIComponent(phone)}`).catch(() => null),
+      ])
       setSelected(d.lead)
       setMessages(d.messages || [])
+      if (cRes?.calls) {
+        const map = {}
+        for (const c of cRes.calls) map[c.callId] = c
+        setLeadCalls(map)
+      }
       apiJson(`/api/leads/${phone}/read`, { method: 'POST' }).catch(() => {})
       setLeads(prev => prev.map(l => (l.phone === phone ? { ...l, unread: false } : l)))
       setParams({ phone })
@@ -969,7 +1047,9 @@ export default function AdminInbox() {
 
                             {/* iOS Style Received Bubble with Bottom-Left Tail */}
                             <div className="relative bg-[#E9E9EB] text-[#000000] px-4 py-2.5 rounded-[18px] text-[13.5px] leading-relaxed shadow-2xs whitespace-pre-wrap break-words selection:bg-blue-200 border border-black/[0.04]">
-                              {m.type === 'audio' || m.type === 'voice' ? (
+                              {m.type === 'call_log' || m.channel === 'whatsapp_call' ? (
+                                <CallLogBubbleContent m={m} isOutbound={false} call={leadCalls[m.waMessageId]} />
+                              ) : m.type === 'audio' || m.type === 'voice' ? (
                                 <IMessageAudioWaveform isOutbound={false} duration={m.duration || '0:14'} />
                               ) : m.text ? (
                                 <FormattedMessageText text={m.text} isOutbound={false} />
@@ -1009,7 +1089,9 @@ export default function AdminInbox() {
                                   className="w-full max-h-48 object-cover rounded-xl mb-2 border border-white/20"
                                 />
                               )}
-                              {m.type === 'audio' || m.type === 'voice' ? (
+                              {m.type === 'call_log' || m.channel === 'whatsapp_call' ? (
+                                <CallLogBubbleContent m={m} isOutbound={true} call={leadCalls[m.waMessageId]} />
+                              ) : m.type === 'audio' || m.type === 'voice' ? (
                                 <IMessageAudioWaveform isOutbound={true} duration={m.duration || '0:18'} />
                               ) : m.text ? (
                                 <FormattedMessageText text={m.text} isOutbound={true} />
