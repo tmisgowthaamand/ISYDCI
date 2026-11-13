@@ -195,7 +195,8 @@ export default function CallControls({ phone, name }) {
         if (['accepted', 'active'].includes(live.status) && !recorderRef.current) {
           startRecording(live.callId)
         }
-      } else if (activeCall) {
+      } else if (activeCallIdRef.current) {
+        activeCallIdRef.current = null
         setActiveCall(null)
         cleanupMedia()
       }
@@ -292,6 +293,7 @@ export default function CallControls({ phone, name }) {
     setBusy(true)
     setError('')
     try {
+      await cleanupMedia()
       const pc = await createPeerConnection()
       const offer = await pc.createOffer({ offerToReceiveAudio: true })
       await pc.setLocalDescription(offer)
