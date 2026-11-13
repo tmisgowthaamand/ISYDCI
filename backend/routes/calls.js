@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { Router } from 'express'
 import { requireAuth, ROLES } from '../services/auth.js'
 import {
@@ -7,9 +8,11 @@ import {
   getCallingSettings,
   initiateOutboundCall,
   listActiveCalls,
+  listCallLogs,
   listCallsForLead,
   preAcceptCall,
   rejectCall,
+  resolveRecordingFile,
   saveCallRecording,
   sendCallPermissionRequest,
   terminateCall,
@@ -74,11 +77,29 @@ router.get('/events', (req, res) => {
   })
 })
 
+// GET /api/calls — list call logs with optional telecaller_id, direction, attended, phone filters
+router.get('/', async (req, res) => {
+  try {
+    const { phone, telecaller_id: telecallerId, direction, attended, limit } = req.query
+    const calls = await listCallLogs({
+      phone,
+      telecallerId,
+      direction,
+      attended: attended === 'true' ? true : attended === 'false' ? false : undefined,
+      limit: parseInt(limit, 10) || 100,
+    })
+    res.json({ success: true, calls })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
 // GET /api/calls/lead/:phone — call history + current 72h call permission for a CRM contact
 router.get('/lead/:phone', async (req, res) => {
   try {
+    const { telecaller_id: telecallerId, direction } = req.query
     const [calls, permission] = await Promise.all([
-      listCallsForLead(req.params.phone),
+      listCallsForLead(req.params.phone, { telecallerId, direction }),
       getCallPermission(req.params.phone),
     ])
     res.json({ success: true, calls, permission })
@@ -107,7 +128,8 @@ router.post('/permission-request', async (req, res) => {
 router.post('/outbound', async (req, res) => {
   try {
     const { phone, sdpOffer } = req.body || {}
-    const result = await initiateOutboundCall(phone, sdpOffer)
+    const telecallerId = req.admin?.username || req.admin?.sub || null
+    const result = await initiateOutboundCall(phone, sdpOffer, { telecallerId })
     res.json({ success: true, ...result })
   } catch (err) {
     console.error('❌ [OUTBOUND CALL ERROR]:', err.message, err.metaError ? JSON.stringify(err.metaError) : '')
@@ -135,7 +157,8 @@ router.post('/:callId/pre-accept', async (req, res) => {
 router.post('/:callId/accept', async (req, res) => {
   try {
     const { sdpAnswer } = req.body || {}
-    const result = await acceptCall(req.params.callId, sdpAnswer)
+    const telecallerId = req.admin?.username || req.admin?.sub || null
+    const result = await acceptCall(req.params.callId, sdpAnswer, { telecallerId })
     res.json({ success: true, ...result })
   } catch (err) {
     res.status(err.status || 400).json({ success: false, message: err.message, metaError: err.metaError })
@@ -159,6 +182,47 @@ router.post('/:callId/terminate', async (req, res) => {
     res.json({ success: true, ...result })
   } catch (err) {
     res.status(err.status || 400).json({ success: false, message: err.message, metaError: err.metaError })
+  }
+})
+
+// GET /api/calls/:callId/recording — authenticated audio stream with HTTP Range scrubbing support
+router.get('/:callId/recording', async (req, res) => {
+  try {
+    const resolved = await resolveRecordingFile(req.params.callId)
+    if (!resolved) return res.status(404).json({ success: false, message: 'Call not found' })
+    if (resolved.unavailable) {
+      return res.status(404).json({ success: false, message: 'Recording not available for this call' })
+    }
+
+    const { filePath, sizeBytes, mimeType } = resolved
+    const range = req.headers.range
+    res.setHeader('Content-Type', mimeType)
+    res.setHeader('Accept-Ranges', 'bytes')
+    res.setHeader('Cache-Control', 'private, max-age=3600')
+
+    if (range) {
+      const match = /^bytes=(\d+)-(\d*)$/.exec(range)
+      if (!match) {
+        res.status(416).setHeader('Content-Range', `bytes */${sizeBytes}`)
+        return res.end()
+      }
+      const start = parseInt(match[1], 10)
+      const end = match[2] ? Math.min(parseInt(match[2], 10), sizeBytes - 1) : sizeBytes - 1
+      if (start >= sizeBytes || start > end) {
+        res.status(416).setHeader('Content-Range', `bytes */${sizeBytes}`)
+        return res.end()
+      }
+      res.status(206)
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${sizeBytes}`)
+      res.setHeader('Content-Length', end - start + 1)
+      fs.createReadStream(filePath, { start, end }).pipe(res)
+    } else {
+      res.status(200)
+      res.setHeader('Content-Length', sizeBytes)
+      fs.createReadStream(filePath).pipe(res)
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
   }
 })
 

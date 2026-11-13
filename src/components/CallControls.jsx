@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { API_BASE_URL, apiJson } from '../config/api.js'
+import { API_BASE_URL, apiJson, getAuthToken } from '../config/api.js'
 
 function formatDuration(sec) {
   const m = Math.floor(sec / 60)
@@ -31,6 +31,8 @@ export default function CallControls({ phone, name }) {
   const [activeCall, setActiveCall] = useState(null)
   const [callHistory, setCallHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
+  const [directionFilter, setDirectionFilter] = useState('all')
+  const [telecallerFilter, setTelecallerFilter] = useState('all')
   const [recording, setRecording] = useState(false)
   const [muted, setMuted] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -470,52 +472,110 @@ export default function CallControls({ phone, name }) {
         </button>
       )}
 
-      {showHistory && (
-        <div className="absolute right-0 top-full mt-1.5 w-80 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2.5 space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-            <span className="text-xs font-black text-slate-800">Call Records & Recordings</span>
-            <button
-              type="button"
-              onClick={() => setShowHistory(false)}
-              className="text-xs text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-          {callHistory.map(c => (
-            <div key={c.callId} className="p-2 rounded-lg bg-slate-50 border border-slate-100 space-y-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-slate-800">
-                  {c.direction === 'inbound' ? '📲 Inbound' : '📞 Outbound'} · {c.status}
-                </span>
-                <span className="font-mono text-slate-500">{c.durationSec ? `${c.durationSec}s` : '0s'}</span>
-              </div>
-              <div className="text-[10px] text-slate-400">{formatCallTime(c.startedAt || c.createdAt)}</div>
-              {c.recordingUrl ? (
-                <div className="space-y-1 mt-1">
-                  <audio
-                    controls
-                    preload="metadata"
-                    src={`${API_BASE_URL}${c.recordingUrl}`}
-                    className="w-full h-7"
-                  />
-                  <div className="flex justify-end">
-                    <a
-                      href={`${API_BASE_URL}${c.recordingUrl}`}
-                      download={`isydci-call-${c.waId}-${c.callId.slice(-10)}.webm`}
-                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
-                    >
-                      ⬇ Download Recording
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-[10px] text-slate-400 italic">No audio recording</div>
-              )}
+      {showHistory && (() => {
+        const telecallers = Array.from(new Set(callHistory.map(c => c.telecaller_id).filter(Boolean)))
+        const filteredCalls = callHistory.filter(c => {
+          const dir = c.call_direction || c.direction
+          if (directionFilter !== 'all' && dir !== directionFilter) return false
+          if (telecallerFilter !== 'all' && (c.telecaller_id || '') !== telecallerFilter) return false
+          return true
+        })
+        const authToken = getAuthToken()
+        return (
+          <div className="absolute right-0 top-full mt-1.5 w-96 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-3 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="text-xs font-black text-slate-800">Call Records & Recordings</span>
+              <button
+                type="button"
+                onClick={() => setShowHistory(false)}
+                className="text-xs text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+
+            <div className="flex items-center gap-1.5">
+              <select
+                value={directionFilter}
+                onChange={e => setDirectionFilter(e.target.value)}
+                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700"
+                aria-label="Filter by direction"
+              >
+                <option value="all">All Directions</option>
+                <option value="inbound">Inbound</option>
+                <option value="outbound">Outbound</option>
+              </select>
+              <select
+                value={telecallerFilter}
+                onChange={e => setTelecallerFilter(e.target.value)}
+                className="flex-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700"
+                aria-label="Filter by telecaller"
+              >
+                <option value="all">All Telecallers</option>
+                {telecallers.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            {filteredCalls.length === 0 ? (
+              <div className="text-[11px] text-slate-400 text-center py-4">No matching call records</div>
+            ) : (
+              filteredCalls.map(c => {
+                const dir = (c.call_direction || c.direction) === 'inbound' ? 'Inbound' : 'Outbound'
+                const dur = c.duration_seconds ?? c.durationSec ?? 0
+                const isAttended = Boolean(c.attended ?? c.answeredAt)
+                const recStatus = c.recording_status || (c.recordingUrl ? 'ready' : 'none')
+                const streamUrl = `${API_BASE_URL}/api/calls/${encodeURIComponent(c.callId)}/recording?token=${encodeURIComponent(authToken)}`
+                return (
+                  <div key={c.callId} className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${dir === 'Inbound' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {dir}
+                        </span>
+                        {!isAttended && (
+                          <span className="px-1.5 py-0.5 rounded font-bold text-[10px] bg-slate-200 text-slate-700">
+                            Unanswered
+                          </span>
+                        )}
+                        {c.telecaller_id && (
+                          <span className="text-[10px] font-semibold text-slate-500">· {c.telecaller_id}</span>
+                        )}
+                      </div>
+                      <span className="font-mono text-slate-500 shrink-0">{dur}s</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400">{formatCallTime(c.startedAt || c.createdAt)}</div>
+
+                    {isAttended && recStatus === 'ready' && (
+                      <div className="space-y-1 pt-0.5">
+                        <audio controls preload="none" src={streamUrl} className="w-full h-7" />
+                        <div className="flex justify-end">
+                          <a
+                            href={streamUrl}
+                            download={`isydci-call-${c.waId}-${c.callId.slice(-10)}.webm`}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                          >
+                            ⬇ Download Recording
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {isAttended && recStatus === 'pending' && (
+                      <div className="text-[10px] text-amber-600 font-semibold italic">Processing recording...</div>
+                    )}
+
+                    {isAttended && recStatus === 'failed' && (
+                      <div className="text-[10px] text-rose-500 italic">Recording unavailable</div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )
+      })()}
 
       {error && (
         <span className="text-[10px] text-rose-600 font-semibold max-w-[200px] truncate" title={error}>

@@ -14,6 +14,13 @@ import { EventEmitter } from 'events'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const RECORDINGS_DIR = path.resolve(__dirname, '../uploads/recordings')
+export const PROTECTED_RECORDINGS_DIR = path.resolve(__dirname, '../protected_recordings')
+
+export const META_RECORDING_CONFIG = {
+  status: 'ENABLED',
+  purpose: 'quality assurance and training',
+  announcement_language: 'en_US',
+}
 import { col } from '../db/mongo.js'
 import { findMemberByPhone } from '../db/db.js'
 import { metaCredentials } from './providers.js'
@@ -282,7 +289,7 @@ export async function recordCallPermissionReply(rawPhone, responseValue, rawPayl
 
 // ---------------------------------------------------------------- Call Signaling (POST /{PHONE_NUMBER_ID}/calls)
 
-export async function initiateOutboundCall(rawPhone, sdpOffer, { bypassPermissionCheck = false } = {}) {
+export async function initiateOutboundCall(rawPhone, sdpOffer, { bypassPermissionCheck = false, telecallerId = null } = {}) {
   const { phoneNumberId } = metaCredentials()
   const waId = leadPhone(rawPhone)
   if (!waId) throw new Error('Valid recipient phone number is required')
@@ -306,6 +313,7 @@ export async function initiateOutboundCall(rawPhone, sdpOffer, { bypassPermissio
       sdp_type: 'offer',
       sdp: sdpOffer,
     },
+    recording: META_RECORDING_CONFIG,
   }
 
   let data
@@ -349,15 +357,22 @@ export async function initiateOutboundCall(rawPhone, sdpOffer, { bypassPermissio
     waId,
     rawWaId: waId,
     direction: 'outbound',
+    call_direction: 'outbound',
+    attended: false,
+    telecaller_id: telecallerId || lead?.assignedTo || null,
     status: 'ringing',
     sdpSession: { type: 'offer', offer: sdpOffer, answer: null },
     startedAt: now,
     answeredAt: null,
     endedAt: null,
     durationSec: 0,
+    duration_seconds: 0,
     endReason: null,
     memberId: member?.memberId || lead?.memberId || null,
     leadId: lead?._id ? String(lead._id) : null,
+    recording_media_id: null,
+    recording_status: 'none',
+    recording_url: null,
     recordingUrl: null,
     transcript: null,
     createdAt: now,
@@ -373,37 +388,55 @@ export async function initiateOutboundCall(rawPhone, sdpOffer, { bypassPermissio
   return { callId, call: doc, raw: data }
 }
 
-async function sendCallAction(callId, action, session) {
+async function sendCallAction(callId, action, session, extra = {}) {
   const { phoneNumberId } = metaCredentials()
   const body = {
     messaging_product: 'whatsapp',
     call_id: callId,
     action,
     ...(session ? { session } : {}),
+    ...extra,
   }
   return graphRequest(`${phoneNumberId}/calls`, { method: 'POST', body })
 }
 
 export async function preAcceptCall(callId, sdpAnswer) {
   if (!callId || !sdpAnswer) throw new Error('callId and sdpAnswer are required')
+  // Never attach recording during pre_accept / ringing
   const data = await sendCallAction(callId, 'pre_accept', { sdp_type: 'answer', sdp: sdpAnswer })
   const now = new Date()
   await CALLS().updateOne(
     { callId },
-    { $set: { status: 'pre_accepted', 'sdpSession.answer': sdpAnswer, updatedAt: now } }
+    { $set: { status: 'pre_accepted', attended: false, 'sdpSession.answer': sdpAnswer, updatedAt: now } }
   )
   const updated = await CALLS().findOne({ callId })
   emitCallEvent('call_update', { call: updated })
   return { call: updated, raw: data }
 }
 
-export async function acceptCall(callId, sdpAnswer) {
+export async function acceptCall(callId, sdpAnswer, { telecallerId = null } = {}) {
   if (!callId || !sdpAnswer) throw new Error('callId and sdpAnswer are required')
-  const data = await sendCallAction(callId, 'accept', { sdp_type: 'answer', sdp: sdpAnswer })
+  const data = await sendCallAction(
+    callId,
+    'accept',
+    { sdp_type: 'answer', sdp: sdpAnswer },
+    { recording: META_RECORDING_CONFIG }
+  )
   const now = new Date()
+  const existing = await CALLS().findOne({ callId })
   await CALLS().updateOne(
     { callId },
-    { $set: { status: 'accepted', answeredAt: now, 'sdpSession.answer': sdpAnswer, updatedAt: now } }
+    {
+      $set: {
+        status: 'accepted',
+        attended: true,
+        recording_status: existing?.recording_status === 'ready' ? 'ready' : 'pending',
+        ...(telecallerId ? { telecaller_id: telecallerId } : {}),
+        answeredAt: existing?.answeredAt || now,
+        'sdpSession.answer': sdpAnswer,
+        updatedAt: now,
+      },
+    }
   )
   const updated = await CALLS().findOne({ callId })
   emitCallEvent('call_update', { call: updated })
@@ -433,7 +466,16 @@ export async function terminateCall(callId) {
     : 0
   await CALLS().updateOne(
     { callId },
-    { $set: { status: 'completed', endedAt: now, durationSec, endReason: 'terminated_by_agent', updatedAt: now } }
+    {
+      $set: {
+        status: 'completed',
+        endedAt: now,
+        durationSec,
+        duration_seconds: durationSec,
+        endReason: 'terminated_by_agent',
+        updatedAt: now,
+      },
+    }
   )
   const updated = await CALLS().findOne({ callId })
   emitCallEvent('call_update', { call: updated })
@@ -484,10 +526,122 @@ async function sendMissedCallFallback(waId) {
   } catch (_) {}
 }
 
-export async function handleCallsWebhook(value) {
-  if (!value) return
+function isUnattendedTermination(event, endReason, durationSec, existing) {
+  const ev = String(event || '').toLowerCase()
+  const reason = String(endReason || '').toLowerCase()
+  const unattendedReasons = ['no_answer', 'rejected', 'failed', 'missed', 'unanswered', 'timeout', 'declined', 'busy']
+  if (['missed', 'rejected', 'failed', 'no_answer'].includes(ev)) return true
+  if (unattendedReasons.some(r => reason.includes(r))) return true
+  if (!existing?.attended && !existing?.answeredAt && (!durationSec || durationSec === 0)) return true
+  return false
+}
 
-  // 1. Handle call events (connect, terminate, status updates, call_permission_reply)
+export async function ingestCallRecording(callId, mediaId, { fetchImpl = fetch, maxRetries = 3 } = {}) {
+  if (!callId || !mediaId) return null
+  const existing = await CALLS().findOne({ callId })
+  if (!existing?.attended) {
+    console.log(`⏭️  [CALL RECORDING] Skipping unattended call ${callId} (media ${mediaId})`)
+    return null
+  }
+  if (existing.recording_status === 'ready' && existing.recording_media_id === mediaId && existing.recording_file) {
+    return { recordingUrl: existing.recording_url, call: existing, skipped: true }
+  }
+
+  const { token } = metaCredentials()
+  if (!token) throw new Error('WHATSAPP_TOKEN missing for recording download')
+
+  await CALLS().updateOne(
+    { callId },
+    { $set: { recording_media_id: mediaId, recording_status: 'pending', updatedAt: new Date() } }
+  )
+
+  let lastErr = null
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const metaRes = await fetchImpl(`${GRAPH_BASE}/${encodeURIComponent(mediaId)}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const metaJson = await metaRes.json().catch(() => ({}))
+      if (!metaRes.ok || !metaJson.url) {
+        throw new Error(metaJson.error?.message || `Media lookup failed (${metaRes.status})`)
+      }
+
+      const binRes = await fetchImpl(metaJson.url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!binRes.ok) {
+        throw new Error(`Media binary download failed (${binRes.status})`)
+      }
+
+      const arrayBuf = await binRes.arrayBuffer()
+      const buf = Buffer.from(arrayBuf)
+      if (!buf.length) throw new Error('Downloaded recording file is empty')
+
+      const mimeType = metaJson.mime_type || binRes.headers.get('content-type') || 'audio/ogg'
+      const ext = mimeType.includes('mpeg') || mimeType.includes('mp3')
+        ? 'mp3'
+        : mimeType.includes('webm')
+          ? 'webm'
+          : mimeType.includes('wav')
+            ? 'wav'
+            : 'ogg'
+      const safeFile = `${String(callId).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)}.${ext}`
+
+      await fs.promises.mkdir(PROTECTED_RECORDINGS_DIR, { recursive: true })
+      await fs.promises.writeFile(path.join(PROTECTED_RECORDINGS_DIR, safeFile), buf)
+
+      const recordingUrl = `/api/calls/${encodeURIComponent(callId)}/recording`
+      const now = new Date()
+      await CALLS().updateOne(
+        { callId },
+        {
+          $set: {
+            recording_media_id: mediaId,
+            recording_status: 'ready',
+            recording_url: recordingUrl,
+            recordingUrl,
+            recording_file: safeFile,
+            recordingMimeType: mimeType,
+            recordingSizeBytes: buf.length,
+            updatedAt: now,
+          },
+        }
+      )
+      const updated = await CALLS().findOne({ callId })
+      await recordEvent('whatsapp_call_recording', `Downloaded Meta recording for ${callId} (${buf.length} bytes)`, {
+        callId,
+        mediaId,
+        bytes: buf.length,
+      }).catch(() => {})
+      emitCallEvent('call_update', { call: updated })
+      return { recordingUrl, bytes: buf.length, call: updated }
+    } catch (err) {
+      lastErr = err
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, attempt * 400))
+      }
+    }
+  }
+
+  await CALLS().updateOne(
+    { callId },
+    { $set: { recording_status: 'failed', recordingError: lastErr?.message || 'Download failed', updatedAt: new Date() } }
+  )
+  await recordEvent('whatsapp_call_recording_error', `Recording download failed for ${callId}: ${lastErr?.message}`, {
+    callId,
+    mediaId,
+    error: lastErr?.message,
+  }).catch(() => {})
+  return { failed: true, error: lastErr?.message }
+}
+
+export async function handleCallsWebhook(value, { awaitRecording = false, fetchImpl = fetch } = {}) {
+  if (!value) return
+  const recordingTasks = []
+
+  // 1. Handle call events (connect, terminate, recording, status updates, call_permission_reply)
   for (const call of value.calls || []) {
     const callId = call.id || call.call_id
     const rawFrom = call.from || call.to || ''
@@ -506,6 +660,18 @@ export async function handleCallsWebhook(value) {
     const member = waId ? await findMemberByPhone(waId).catch(() => null) : null
     const lead = waId ? await LEADS().findOne({ phone: waId }).catch(() => null) : null
 
+    if (event === 'recording') {
+      const mediaId = call.recording?.media_id || call.media_id || call.recording_media_id
+      const existing = await CALLS().findOne({ callId })
+      if (mediaId && existing?.attended) {
+        const task = ingestCallRecording(callId, mediaId, { fetchImpl })
+        recordingTasks.push(task)
+      } else {
+        console.log(`⏭️  [CALL RECORDING] Ignored standalone recording event for unattended/unknown call ${callId}`)
+      }
+      continue
+    }
+
     if (event === 'connect') {
       const direction = call.direction === 'BUSINESS_INITIATED' ? 'outbound' : 'inbound'
       const sdp = call.session?.sdp || null
@@ -518,6 +684,8 @@ export async function handleCallsWebhook(value) {
           {
             $set: {
               status: 'accepted',
+              attended: true,
+              recording_status: existing.recording_status === 'ready' ? 'ready' : 'pending',
               answeredAt: existing.answeredAt || now,
               'sdpSession.answer': sdp,
               updatedAt: now,
@@ -533,15 +701,22 @@ export async function handleCallsWebhook(value) {
           waId,
           rawWaId: rawFrom,
           direction,
+          call_direction: direction,
+          attended: false,
+          telecaller_id: existing?.telecaller_id || lead?.assignedTo || null,
           status: 'ringing',
           sdpSession: { type: sdpType, offer: sdp, answer: null },
           startedAt: now,
           answeredAt: null,
           endedAt: null,
           durationSec: 0,
+          duration_seconds: 0,
           endReason: null,
           memberId: member?.memberId || lead?.memberId || null,
           leadId: lead?._id ? String(lead._id) : null,
+          recording_media_id: null,
+          recording_status: 'none',
+          recording_url: null,
           recordingUrl: null,
           transcript: null,
           createdAt: existing?.createdAt || now,
@@ -555,21 +730,6 @@ export async function handleCallsWebhook(value) {
     } else if (event === 'terminate' || ['completed', 'missed', 'failed', 'rejected', 'no_answer'].includes(event)) {
       const existing = await CALLS().findOne({ callId })
       const endReason = call.end_reason || call.reason || event
-      const wasAnswered = Boolean(existing?.answeredAt)
-      const isMissed =
-        !wasAnswered &&
-        (existing?.direction === 'inbound' || !existing) &&
-        ['missed', 'no_answer', 'unanswered', 'caller_hangup', 'timeout', 'terminate'].includes(String(endReason).toLowerCase())
-
-      const finalStatus =
-        event === 'rejected'
-          ? 'rejected'
-          : event === 'failed'
-            ? 'failed'
-            : isMissed
-              ? 'missed'
-              : 'completed'
-
       const durationSec =
         typeof call.duration === 'number'
           ? call.duration
@@ -577,27 +737,60 @@ export async function handleCallsWebhook(value) {
             ? Math.max(0, Math.round((now.getTime() - new Date(existing.answeredAt).getTime()) / 1000))
             : 0
 
+      const unattended = isUnattendedTermination(event, endReason, durationSec, existing)
+      const attended = !unattended && (Boolean(existing?.attended) || durationSec > 0)
+
+      const finalStatus =
+        event === 'rejected'
+          ? 'rejected'
+          : event === 'failed'
+            ? 'failed'
+            : unattended
+              ? 'missed'
+              : 'completed'
+
+      const mediaId = call.recording?.media_id || call.recording_media_id || call.media_id || value.recording?.media_id || null
+
+      const setFields = {
+        status: finalStatus,
+        attended,
+        endedAt: now,
+        durationSec,
+        duration_seconds: durationSec,
+        endReason,
+        updatedAt: now,
+      }
+      if (!attended) {
+        setFields.recording_status = 'none'
+        setFields.recording_media_id = null
+        setFields.recording_url = null
+        setFields.recordingUrl = null
+      } else if (mediaId && existing?.recording_status !== 'ready') {
+        setFields.recording_media_id = mediaId
+        setFields.recording_status = 'pending'
+      }
+
       await CALLS().updateOne(
         { callId },
         {
-          $set: {
-            status: finalStatus,
-            endedAt: now,
-            durationSec,
-            endReason,
-            updatedAt: now,
-          },
+          $set: setFields,
           $setOnInsert: {
             callId,
             waId,
             rawWaId: rawFrom,
             direction: 'inbound',
+            call_direction: 'inbound',
+            telecaller_id: lead?.assignedTo || null,
             startedAt: now,
             createdAt: now,
           },
         },
         { upsert: true }
       )
+
+      if (attended && mediaId) {
+        recordingTasks.push(ingestCallRecording(callId, mediaId, { fetchImpl }))
+      }
 
       const updated = await CALLS().findOne({ callId })
       const summaryText =
@@ -615,25 +808,53 @@ export async function handleCallsWebhook(value) {
     }
   }
 
-  // 2. Handle call status updates sent in value.statuses
+  // 2. Handle standalone recordings array if delivered in value.recordings
+  for (const rec of value.recordings || []) {
+    const callId = rec.call_id || rec.id
+    const mediaId = rec.media_id
+    if (!callId || !mediaId) continue
+    const existing = await CALLS().findOne({ callId })
+    if (existing?.attended) {
+      recordingTasks.push(ingestCallRecording(callId, mediaId, { fetchImpl }))
+    }
+  }
+
+  // 3. Handle call status updates sent in value.statuses
   for (const st of value.statuses || []) {
     if (st.type !== 'call' && !st.call_id && !String(st.id || '').startsWith('wacid')) continue
     const callId = st.call_id || st.id
     const status = String(st.status || '').toLowerCase()
     const now = new Date()
+    const existing = await CALLS().findOne({ callId })
     const update = { updatedAt: now }
-    if (status === 'accepted' || status === 'answered') {
+    if (status === 'accepted' || status === 'answered' || status === 'connected' || status === 'in_progress') {
       update.status = 'accepted'
-      update.answeredAt = now
-    } else if (['completed', 'missed', 'failed', 'rejected', 'terminated'].includes(status)) {
-      update.status = status === 'terminated' ? 'completed' : status
+      update.attended = true
+      update.answeredAt = existing?.answeredAt || now
+      update.recording_status = existing?.recording_status === 'ready' ? 'ready' : 'pending'
+    } else if (['completed', 'missed', 'failed', 'rejected', 'no_answer', 'terminated'].includes(status)) {
+      const durationSec = typeof st.duration === 'number' ? st.duration : existing?.durationSec || 0
+      const unattended = isUnattendedTermination(status, status, durationSec, existing)
+      update.status = status === 'terminated' ? (unattended ? 'missed' : 'completed') : status
+      update.attended = !unattended && (Boolean(existing?.attended) || durationSec > 0)
       update.endedAt = now
-      if (typeof st.duration === 'number') update.durationSec = st.duration
+      update.durationSec = durationSec
+      update.duration_seconds = durationSec
+      if (!update.attended) {
+        update.recording_status = 'none'
+        update.recording_media_id = null
+        update.recording_url = null
+        update.recordingUrl = null
+      }
       if (st.errors?.length) update.endReason = st.errors.map(e => `${e.code}: ${e.title}`).join('; ')
     }
     await CALLS().updateOne({ callId }, { $set: update })
     const updated = await CALLS().findOne({ callId })
     if (updated) emitCallEvent('call_update', { call: updated })
+  }
+
+  if (awaitRecording && recordingTasks.length) {
+    await Promise.allSettled(recordingTasks)
   }
 }
 
@@ -647,15 +868,64 @@ export async function listActiveCalls() {
     .toArray()
 }
 
-export async function listCallsForLead(rawPhone, limit = 25) {
+export async function listCallsForLead(rawPhone, { telecallerId, direction, limit = 50 } = {}) {
   const waId = leadPhone(rawPhone)
   if (!waId) return []
-  return CALLS().find({ waId }).sort({ createdAt: -1 }).limit(limit).toArray()
+  const filter = { waId }
+  if (telecallerId) filter.telecaller_id = telecallerId
+  if (direction && ['inbound', 'outbound'].includes(direction)) {
+    filter.$or = [{ call_direction: direction }, { direction }]
+  }
+  return CALLS().find(filter).sort({ createdAt: -1 }).limit(limit).toArray()
+}
+
+export async function listCallLogs({ phone, telecallerId, direction, attended, limit = 100 } = {}) {
+  const filter = {}
+  if (phone) filter.waId = leadPhone(phone)
+  if (telecallerId) filter.telecaller_id = telecallerId
+  if (direction && ['inbound', 'outbound'].includes(direction)) {
+    filter.$or = [{ call_direction: direction }, { direction }]
+  }
+  if (attended !== undefined) filter.attended = Boolean(attended)
+  return CALLS().find(filter).sort({ createdAt: -1 }).limit(Math.min(200, limit)).toArray()
+}
+
+export async function resolveRecordingFile(callId) {
+  if (!callId) return null
+  const call = await CALLS().findOne({ callId })
+  if (!call) return null
+  if (!call.attended || call.recording_status !== 'ready') {
+    return { call, unavailable: true }
+  }
+  const candidates = []
+  if (call.recording_file) {
+    candidates.push(path.join(PROTECTED_RECORDINGS_DIR, path.basename(call.recording_file)))
+  }
+  if (call.recordingUrl && call.recordingUrl.startsWith('/uploads/recordings/')) {
+    candidates.push(path.join(RECORDINGS_DIR, path.basename(call.recordingUrl)))
+  }
+  for (const filePath of candidates) {
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath)
+      return {
+        call,
+        filePath,
+        sizeBytes: stat.size,
+        mimeType: call.recordingMimeType || 'audio/webm',
+      }
+    }
+  }
+  return { call, unavailable: true }
 }
 
 export async function saveCallRecording(callId, { audioBase64, mimeType = 'audio/webm', durationSec = 0 } = {}) {
   if (!callId) throw new Error('callId is required')
   if (!audioBase64 || typeof audioBase64 !== 'string') throw new Error('audioBase64 is required')
+
+  const existing = await CALLS().findOne({ callId })
+  if (existing && !existing.attended && !existing.answeredAt) {
+    throw new Error('Cannot save recording for an unattended call')
+  }
 
   const stripped = audioBase64.replace(/^data:[^;]+;base64,/, '')
   const buf = Buffer.from(stripped, 'base64')
@@ -665,19 +935,23 @@ export async function saveCallRecording(callId, { audioBase64, mimeType = 'audio
   const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm'
   const safeName = `${String(callId).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)}.${ext}`
 
-  await fs.promises.mkdir(RECORDINGS_DIR, { recursive: true })
-  await fs.promises.writeFile(path.join(RECORDINGS_DIR, safeName), buf)
+  await fs.promises.mkdir(PROTECTED_RECORDINGS_DIR, { recursive: true })
+  await fs.promises.writeFile(path.join(PROTECTED_RECORDINGS_DIR, safeName), buf)
 
-  const recordingUrl = `/uploads/recordings/${safeName}`
+  const recordingUrl = `/api/calls/${encodeURIComponent(callId)}/recording`
   const now = new Date()
   await CALLS().updateOne(
     { callId },
     {
       $set: {
+        attended: true,
+        recording_status: 'ready',
+        recording_url: recordingUrl,
         recordingUrl,
+        recording_file: safeName,
         recordingMimeType: mimeType,
         recordingSizeBytes: buf.length,
-        ...(durationSec > 0 ? { durationSec } : {}),
+        ...(durationSec > 0 ? { durationSec, duration_seconds: durationSec } : {}),
         updatedAt: now,
       },
     }

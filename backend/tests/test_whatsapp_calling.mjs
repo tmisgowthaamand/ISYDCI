@@ -20,6 +20,7 @@ import {
   checkPermissionRequestRateLimit,
   initiateOutboundCall,
   saveCallRecording,
+  PROTECTED_RECORDINGS_DIR,
 } from '../services/calling.js'
 
 const TEST_PHONE = '919999888777'
@@ -181,7 +182,7 @@ async function main() {
   const r7d = await checkPermissionRequestRateLimit(TEST_PHONE, now)
   check(r7d.allowed === false && r7d.count7d === 2, 'Rate limit blocks 3rd request within 7 days')
 
-  // 8. Save call recording (.webm) and verify recordingUrl persisted + file written
+  // 8. Save call recording (.webm) and verify recordingUrl persisted + file written to protected_recordings
   const dummyBase64 = 'data:audio/webm;base64,' + Buffer.alloc(128, 0x41).toString('base64')
   const recRes = await saveCallRecording(TEST_CALL_ID_ANS, {
     audioBase64: dummyBase64,
@@ -189,10 +190,115 @@ async function main() {
     durationSec: 30,
   })
   const recDoc = await col('whatsapp_calls').findOne({ callId: TEST_CALL_ID_ANS })
-  const savedFile = path.resolve(__dirname, '../uploads/recordings', `${TEST_CALL_ID_ANS}.webm`)
-  check(recRes.recordingUrl === `/uploads/recordings/${TEST_CALL_ID_ANS}.webm`, 'saveCallRecording returns expected recordingUrl')
-  check(recDoc?.recordingUrl === recRes.recordingUrl && fs.existsSync(savedFile), 'Recording URL stored in DB and file written to disk')
+  const savedFile = path.resolve(PROTECTED_RECORDINGS_DIR, `${TEST_CALL_ID_ANS}.webm`)
+  const expectedUrl = `/api/calls/${encodeURIComponent(TEST_CALL_ID_ANS)}/recording`
+  check(recRes.recordingUrl === expectedUrl, 'saveCallRecording returns protected /api/calls/:callId/recording URL')
+  check(recDoc?.recording_url === expectedUrl && recDoc?.recording_status === 'ready' && fs.existsSync(savedFile), 'Recording URL & ready status stored in DB and file written to protected_recordings')
   fs.unlinkSync(savedFile)
+
+  // 9. Strict Attended-Only Guard: unanswered call with media_id must NOT be marked attended or ingest recording
+  const TEST_UNATTENDED_ID = `wacid.test.unattended.${Date.now()}`
+  await handleCallsWebhook({
+    messaging_product: 'whatsapp',
+    calls: [
+      { id: TEST_UNATTENDED_ID, from: TEST_PHONE, event: 'connect', direction: 'USER_INITIATED', session: { sdp_type: 'offer', sdp: 'v=0' } },
+    ],
+  })
+  await handleCallsWebhook(
+    {
+      messaging_product: 'whatsapp',
+      calls: [
+        {
+          id: TEST_UNATTENDED_ID,
+          from: TEST_PHONE,
+          event: 'terminate',
+          end_reason: 'NO_ANSWER',
+          duration: 0,
+          recording: { media_id: 'media_should_ignore_123' },
+        },
+      ],
+    },
+    { awaitRecording: true }
+  )
+  const unattendedDoc = await col('whatsapp_calls').findOne({ callId: TEST_UNATTENDED_ID })
+  check(unattendedDoc?.attended === false && unattendedDoc?.recording_status === 'none' && unattendedDoc?.recording_url === null, 'Unanswered call enforces attended=false and discards recording ingestion')
+
+  // 10. Attended call + Meta recording webhook -> GET /{media_id} + binary download -> protected_recordings + Range streaming
+  const TEST_ATTENDED_ID = `wacid.test.attended.${Date.now()}`
+  await col('whatsapp_calls').insertOne({
+    callId: TEST_ATTENDED_ID,
+    waId: TEST_PHONE,
+    direction: 'inbound',
+    call_direction: 'inbound',
+    attended: true,
+    telecaller_id: 'admin',
+    status: 'accepted',
+    startedAt: new Date(Date.now() - 20000),
+    answeredAt: new Date(Date.now() - 15000),
+    recording_status: 'pending',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+
+  const mockAudioBytes = Buffer.from('OggS_MOCK_META_CALL_RECORDING_AUDIO_PAYLOAD_1234567890')
+  const mockFetch = async url => {
+    if (String(url).includes('/media_meta_999')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ url: 'https://lookaside.fbsbx.com/mock_audio_bin', mime_type: 'audio/ogg' }),
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map([['content-type', 'audio/ogg']]),
+      arrayBuffer: async () => mockAudioBytes.buffer.slice(mockAudioBytes.byteOffset, mockAudioBytes.byteOffset + mockAudioBytes.byteLength),
+    }
+  }
+
+  await handleCallsWebhook(
+    {
+      messaging_product: 'whatsapp',
+      calls: [
+        {
+          id: TEST_ATTENDED_ID,
+          from: TEST_PHONE,
+          event: 'terminate',
+          duration: 15,
+          end_reason: 'caller_hangup',
+          recording: { media_id: 'media_meta_999' },
+        },
+      ],
+    },
+    { awaitRecording: true, fetchImpl: mockFetch }
+  )
+
+  const attendedDoc = await col('whatsapp_calls').findOne({ callId: TEST_ATTENDED_ID })
+  const metaFile = path.resolve(PROTECTED_RECORDINGS_DIR, `${TEST_ATTENDED_ID}.ogg`)
+  check(attendedDoc?.attended === true && attendedDoc?.recording_status === 'ready', 'Attended call ingests Meta recording to status=ready')
+  check(attendedDoc?.recording_media_id === 'media_meta_999' && fs.existsSync(metaFile), 'Meta media_id persisted and audio file saved to protected_recordings')
+
+  // Test authenticated GET /api/calls/:callId/recording + Range 206 if backend is running on :5000
+  try {
+    const BASE = process.env.TEST_BASE_URL || 'http://localhost:5000'
+    const unauth = await fetch(`${BASE}/api/calls/${encodeURIComponent(TEST_ATTENDED_ID)}/recording`)
+    if (unauth.status === 401) {
+      check(true, 'GET /api/calls/:callId/recording rejects unauthenticated request with 401')
+      const loginRes = await fetch(`${BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD }),
+      }).then(r => r.json())
+      const rangeRes = await fetch(`${BASE}/api/calls/${encodeURIComponent(TEST_ATTENDED_ID)}/recording`, {
+        headers: { Authorization: `Bearer ${loginRes.token}`, Range: 'bytes=0-9' },
+      })
+      const rangeText = await rangeRes.text()
+      check(rangeRes.status === 206 && rangeText === mockAudioBytes.subarray(0, 10).toString('utf8'), 'Authenticated GET /api/calls/:callId/recording streams HTTP 206 Range bytes')
+    }
+  } catch (_) {}
+
+  if (fs.existsSync(metaFile)) fs.unlinkSync(metaFile)
 
   await cleanup()
   await closeDb()

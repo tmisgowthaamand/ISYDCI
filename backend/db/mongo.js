@@ -107,6 +107,8 @@ async function ensureIndexes(d) {
       { key: { callId: 1 }, unique: true },
       { key: { waId: 1, createdAt: -1 } },
       { key: { status: 1, updatedAt: -1 } },
+      { key: { attended: 1, recording_status: 1, createdAt: -1 } },
+      { key: { telecaller_id: 1, call_direction: 1, createdAt: -1 } },
       { key: { createdAt: -1 } },
     ]),
     d.collection('call_permissions').createIndexes([
