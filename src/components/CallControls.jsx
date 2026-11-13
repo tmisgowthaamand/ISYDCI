@@ -88,7 +88,7 @@ export default function CallControls({ phone, name }) {
           recordingCallIdRef.current = null
           setRecording(false)
 
-          if (callId && blob.size > 0) {
+          if (callId && blob.size >= 100) {
             const reader = new FileReader()
             reader.onloadend = async () => {
               try {
@@ -108,6 +108,7 @@ export default function CallControls({ phone, name }) {
         resolve()
       }
       try {
+        rec.requestData?.()
         rec.stop()
       } catch (_) {
         setRecording(false)
@@ -121,7 +122,13 @@ export default function CallControls({ phone, name }) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext
       const ctx = new AudioCtx()
       const dest = ctx.createMediaStreamDestination()
-      // Silent sink keeps Firefox's WebAudio rendering thread active for MediaStreamDestination
+      // Keep-alive silent oscillator + sink ensures Firefox/Chrome continuously pump frames to MediaStreamDestination
+      const osc = ctx.createOscillator()
+      const oscGain = ctx.createGain()
+      oscGain.gain.value = 0
+      osc.connect(oscGain)
+      oscGain.connect(dest)
+      osc.start()
       const silencer = ctx.createGain()
       silencer.gain.value = 0
       silencer.connect(ctx.destination)

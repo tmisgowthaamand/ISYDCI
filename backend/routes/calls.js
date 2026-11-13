@@ -233,6 +233,7 @@ router.post('/:callId/recording', async (req, res) => {
     const result = await saveCallRecording(req.params.callId, { audioBase64, mimeType, durationSec })
     res.json({ success: true, ...result })
   } catch (err) {
+    console.warn(`⚠️ [CALL RECORDING UPLOAD 400] ${req.params.callId}: ${err.message}`)
     res.status(400).json({ success: false, message: err.message })
   }
 })
