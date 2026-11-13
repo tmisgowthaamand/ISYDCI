@@ -43,6 +43,7 @@ export default function CallControls({ phone, name }) {
   const audioRef = useRef(null)
   const recorderRef = useRef(null)
   const audioCtxRef = useRef(null)
+  const audioDestRef = useRef(null)
   const chunksRef = useRef([])
   const recordingCallIdRef = useRef(null)
   const elapsedRef = useRef(0)
@@ -72,6 +73,7 @@ export default function CallControls({ phone, name }) {
           if (audioCtxRef.current) {
             audioCtxRef.current.close().catch(() => {})
             audioCtxRef.current = null
+            audioDestRef.current = null
           }
           recorderRef.current = null
           recordingCallIdRef.current = null
@@ -105,31 +107,36 @@ export default function CallControls({ phone, name }) {
     })
   }
 
-  const startRecording = callId => {
+  const ensureAudioMix = async () => {
+    if (!audioCtxRef.current) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      audioCtxRef.current = new AudioCtx()
+      audioDestRef.current = audioCtxRef.current.createMediaStreamDestination()
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      await audioCtxRef.current.resume().catch(() => {})
+    }
+    return { ctx: audioCtxRef.current, dest: audioDestRef.current }
+  }
+
+  const startRecording = async callId => {
     if (!callId || recorderRef.current || typeof MediaRecorder === 'undefined') return
     if (!streamRef.current && !remoteStreamRef.current) return
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      const ctx = new AudioCtx()
-      const dest = ctx.createMediaStreamDestination()
-      if (streamRef.current?.getAudioTracks().length) {
-        ctx.createMediaStreamSource(streamRef.current).connect(dest)
-      }
-      if (remoteStreamRef.current?.getAudioTracks().length) {
-        ctx.createMediaStreamSource(remoteStreamRef.current).connect(dest)
-      }
+      const { dest } = await ensureAudioMix()
       const preferred = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : ''
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+          ? 'audio/ogg;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : ''
       const rec = preferred ? new MediaRecorder(dest.stream, { mimeType: preferred }) : new MediaRecorder(dest.stream)
       chunksRef.current = []
       rec.ondataavailable = evt => {
         if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data)
       }
-      rec.start(1000)
-      audioCtxRef.current = ctx
+      rec.start(500)
       recorderRef.current = rec
       recordingCallIdRef.current = callId
       setRecording(true)
@@ -204,16 +211,23 @@ export default function CallControls({ phone, name }) {
   }, [activeCall?.callId, activeCall?.status])
 
   const createPeerConnection = async () => {
+    const { ctx, dest } = await ensureAudioMix()
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     })
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     streamRef.current = stream
     stream.getTracks().forEach(track => pc.addTrack(track, stream))
+    if (stream.getAudioTracks().length) {
+      ctx.createMediaStreamSource(stream).connect(dest)
+    }
     pc.ontrack = evt => {
       if (evt.streams?.[0]) {
         remoteStreamRef.current = evt.streams[0]
         if (audioRef.current) audioRef.current.srcObject = evt.streams[0]
+        if (evt.streams[0].getAudioTracks().length && audioCtxRef.current && audioDestRef.current) {
+          audioCtxRef.current.createMediaStreamSource(evt.streams[0]).connect(audioDestRef.current)
+        }
         if (activeCall?.callId && !recorderRef.current) {
           startRecording(activeCall.callId)
         }
