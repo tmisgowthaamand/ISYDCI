@@ -962,6 +962,25 @@ export async function listActiveCalls({ admin = null, scopeAll = false } = {}) {
   return calls.filter(c => canAdminReceiveCall(c, admin))
 }
 
+async function expireStalePendingRecordings(calls) {
+  const cutoff = Date.now() - 3 * 60 * 1000
+  const staleIds = []
+  for (const c of calls) {
+    if (c.recording_status === 'pending' && !c.recording_media_id && c.endedAt && new Date(c.endedAt).getTime() < cutoff) {
+      c.recording_status = 'failed'
+      c.recordingError = c.recordingError || 'No recording delivered by Meta (silent or no RTP media)'
+      staleIds.push(c.callId)
+    }
+  }
+  if (staleIds.length) {
+    await CALLS().updateMany(
+      { callId: { $in: staleIds }, recording_status: 'pending', recording_media_id: null },
+      { $set: { recording_status: 'failed', recordingError: 'No recording delivered by Meta (silent or no RTP media)', updatedAt: new Date() } }
+    ).catch(() => {})
+  }
+  return calls
+}
+
 export async function listCallsForLead(rawPhone, { telecallerId, direction, limit = 50 } = {}) {
   const waId = leadPhone(rawPhone)
   if (!waId) return []
@@ -970,7 +989,8 @@ export async function listCallsForLead(rawPhone, { telecallerId, direction, limi
   if (direction && ['inbound', 'outbound'].includes(direction)) {
     filter.$or = [{ call_direction: direction }, { direction }]
   }
-  return CALLS().find(filter).sort({ createdAt: -1 }).limit(limit).toArray()
+  const calls = await CALLS().find(filter).sort({ createdAt: -1 }).limit(limit).toArray()
+  return expireStalePendingRecordings(calls)
 }
 
 export async function listCallLogs({ phone, telecallerId, direction, attended, limit = 100 } = {}) {
@@ -981,7 +1001,8 @@ export async function listCallLogs({ phone, telecallerId, direction, attended, l
     filter.$or = [{ call_direction: direction }, { direction }]
   }
   if (attended !== undefined) filter.attended = Boolean(attended)
-  return CALLS().find(filter).sort({ createdAt: -1 }).limit(Math.min(200, limit)).toArray()
+  const calls = await CALLS().find(filter).sort({ createdAt: -1 }).limit(Math.min(200, limit)).toArray()
+  return expireStalePendingRecordings(calls)
 }
 
 export async function resolveRecordingFile(callId) {
