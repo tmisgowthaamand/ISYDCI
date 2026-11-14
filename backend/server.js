@@ -11,6 +11,7 @@ import leadsRouter from './routes/leads.js'
 import templatesRouter from './routes/templates.js'
 import callsRouter from './routes/calls.js'
 import telecallersRouter from './routes/telecallers.js'
+import reportsRouter from './routes/reports.js'
 import devRouter from './routes/dev.js'
 import { connectDb } from './db/mongo.js'
 import { bootstrapFromJson } from './db/db.js'
@@ -154,6 +155,7 @@ app.use('/api/leads', leadsRouter)
 app.use('/api/templates', templatesRouter)
 app.use('/api/calls', callsRouter)
 app.use('/api/telecallers', telecallersRouter)
+app.use('/api/reports', reportsRouter)
 app.use('/api/dev', devRouter)
 app.use('/api/members', membersRouter)
 app.use('/api', membersRouter) // exposes /api/stats

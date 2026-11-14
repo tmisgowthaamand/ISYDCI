@@ -107,12 +107,18 @@ async function ensureIndexes(d) {
       { key: { callId: 1 }, unique: true },
       { key: { waId: 1, createdAt: -1 } },
       { key: { status: 1, updatedAt: -1 } },
+      { key: { status: 1, startedAt: -1 } },
       { key: { attended: 1, recording_status: 1, createdAt: -1 } },
       { key: { telecaller_id: 1, call_direction: 1, createdAt: -1 } },
+      { key: { telecaller_id: 1, startedAt: -1 } },
+      { key: { direction: 1, startedAt: -1 } },
+      { key: { startedAt: -1 } },
+      { key: { leadId: 1 }, sparse: true },
       { key: { createdAt: -1 } },
     ]),
     d.collection('call_permissions').createIndexes([
       { key: { waId: 1 }, unique: true },
+      { key: { status: 1, permissionExpiresAt: 1 } },
       { key: { permissionExpiresAt: 1 } },
     ]),
   ])

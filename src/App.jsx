@@ -27,6 +27,7 @@ import AdminUsers from './pages/AdminUsers.jsx'
 import AdminAudit from './pages/AdminAudit.jsx'
 import AdminTelecallers from './pages/AdminTelecallers.jsx'
 import TelecallerDashboard from './pages/TelecallerDashboard.jsx'
+import AdminCallReports from './pages/AdminCallReports.jsx'
 
 export default function App() {
   return (
@@ -71,6 +72,7 @@ export default function App() {
           <Route path="incomplete" element={<AdminLeads preset="incomplete" />} />
           <Route path="templates" element={<AdminTemplates />} />
           <Route path="telecaller" element={<TelecallerDashboard />} />
+          <Route path="reports/calls" element={<AdminCallReports />} />
           {/* DEVELOPER MODE (Super Super Admin only — AdminLayout redirects other roles, backend returns 403) */}
           <Route path="dev/telecallers" element={<AdminTelecallers />} />
           <Route path="dev/providers" element={<AdminProviders />} />

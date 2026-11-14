@@ -19,6 +19,7 @@ import {
   terminateCall,
   updateCallingSettings,
 } from '../services/calling.js'
+import { exportCallsCsv } from '../services/callReports.js'
 
 const router = Router()
 router.use(requireAuth())
@@ -79,6 +80,30 @@ router.get('/events', (req, res) => {
     clearInterval(keepAlive)
     callEvents.off('call_event', onEvent)
   })
+})
+
+// GET /api/calls/export — CSV export of filtered call logs (scoped for telecallers)
+router.get('/export', async (req, res) => {
+  try {
+    const { from, to, days, telecaller_id: telecallerId, direction, district } = req.query
+    const scopedTelecaller = req.admin?.role === ROLES.TELECALLER ? req.admin.username : (telecallerId || undefined)
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="isydci-calls-${new Date().toISOString().slice(0, 10)}.csv"`)
+    for await (const chunk of exportCallsCsv({
+      from,
+      to,
+      days,
+      telecallerId: scopedTelecaller,
+      direction,
+      district,
+    })) {
+      res.write(chunk)
+    }
+    res.end()
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
 })
 
 // GET /api/calls — list call logs with optional telecaller_id, direction, attended, phone filters

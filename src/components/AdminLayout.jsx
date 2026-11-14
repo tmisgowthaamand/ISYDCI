@@ -36,10 +36,10 @@ export default function AdminLayout() {
         if (location.pathname.startsWith('/admin/dev') && parsed.role !== 'super_super_admin') {
           navigate(parsed.role === 'telecaller' ? '/admin/telecaller' : '/admin/dashboard')
         }
-        // telecallers only access their dedicated dashboard, inbox, and assigned leads
+        // telecallers only access their dedicated dashboard, inbox, assigned leads, and own call reports
         if (
           parsed.role === 'telecaller' &&
-          !['/admin/telecaller', '/admin/inbox', '/admin/leads'].some(p => location.pathname.startsWith(p))
+          !['/admin/telecaller', '/admin/inbox', '/admin/leads', '/admin/reports/calls'].some(p => location.pathname.startsWith(p))
         ) {
           navigate('/admin/telecaller')
         }
@@ -140,6 +140,7 @@ export default function AdminLayout() {
     { name: 'Leads', path: '/admin/leads', icon: icon(<><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 12 0v1" /><path d="M19 8v6" /><path d="M22 11h-6" /></>) },
     { name: 'Incomplete Registrations', path: '/admin/incomplete', icon: icon(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>) },
     { name: 'Templates', path: '/admin/templates', icon: icon(<><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M9 21V9" /></>) },
+    { name: 'Call Reports', path: '/admin/reports/calls', icon: icon(<><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></>) },
   ]
 
   // GROUP 4: DEVELOPER MODE (Super Super Admin only)
@@ -230,6 +231,7 @@ export default function AdminLayout() {
                 { name: 'Telecaller Dashboard', path: '/admin/telecaller', icon: icon(<><rect width="7" height="9" x="3" y="3" rx="1.5" /><rect width="7" height="5" x="14" y="3" rx="1.5" /><rect width="7" height="9" x="14" y="12" rx="1.5" /><rect width="7" height="5" x="3" y="16" rx="1.5" /></>) },
                 { name: 'Inbox', path: '/admin/inbox', icon: crmNavItems[0].icon },
                 { name: 'My Leads', path: '/admin/leads', icon: crmNavItems[1].icon },
+                { name: 'Call Reports', path: '/admin/reports/calls', icon: crmNavItems[4].icon },
               ])
             ) : (
               <>
