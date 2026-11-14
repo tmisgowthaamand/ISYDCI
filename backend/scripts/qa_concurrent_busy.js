@@ -63,6 +63,41 @@ function buildConnectPayload(callId, fromPhone) {
   }
 }
 
+function buildTerminatePayload(callId, fromPhone) {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || 'waba_test',
+        changes: [
+          {
+            field: 'calls',
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: {
+                display_phone_number: process.env.WHATSAPP_NUMBER || '910000000000',
+                phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID || 'phone_id_test',
+              },
+              calls: [
+                {
+                  id: callId,
+                  from: fromPhone,
+                  to: process.env.WHATSAPP_NUMBER || '910000000000',
+                  event: 'terminate',
+                  direction: 'USER_INITIATED',
+                  end_reason: 'rejected',
+                  duration: 0,
+                  timestamp: String(Math.floor(Date.now() / 1000)),
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  }
+}
+
 async function openSse(baseUrl, token) {
   const controller = new AbortController()
   const events = []
@@ -149,7 +184,7 @@ async function main() {
     await col('leads').deleteMany({ phone: { $in: [PHONE_1, PHONE_2] } })
     await col('leads').insertMany([
       { phone: PHONE_1, name: 'QA Lead One', status: 'new', source: 'manual', assignedTo: 'harish', createdAt: new Date(), updatedAt: new Date() },
-      { phone: PHONE_2, name: 'QA Lead Two', status: 'new', source: 'manual', assignedTo: 'harish', createdAt: new Date(), updatedAt: new Date() },
+      { phone: PHONE_2, name: PHONE_2, status: 'new', source: 'manual', assignedTo: 'harish', createdAt: new Date(), updatedAt: new Date() },
     ])
 
     server = await new Promise(r => { const s = app.listen(0, '127.0.0.1', () => r(s)) })
@@ -185,7 +220,10 @@ async function main() {
     while (Date.now() < wait3 && !(await col('whatsapp_calls').findOne({ callId: CALL_3 }))) {
       await new Promise(r => setTimeout(r, 30))
     }
-    await new Promise(r => setTimeout(r, 150))
+
+    // 4. Meta sends follow-up terminate webhook for rejected CALL_2 -> must NOT send generic missed-call fallback or overwrite endReason
+    await postWebhook(baseUrl, buildTerminatePayload(CALL_2, PHONE_2))
+    await new Promise(r => setTimeout(r, 200))
 
     // Assertions
     const call1 = await col('whatsapp_calls').findOne({ callId: CALL_1 })
@@ -197,7 +235,7 @@ async function main() {
     assert.equal(call1.telecaller_id, 'harish')
 
     assert.equal(call2.status, 'missed', 'Lead 2 call must be saved as missed')
-    assert.equal(call2.endReason, 'telecaller_busy', 'Lead 2 call must have endReason=telecaller_busy')
+    assert.equal(call2.endReason, 'telecaller_busy', 'Lead 2 call must preserve endReason=telecaller_busy after terminate')
     assert.equal(call2.telecaller_id, 'harish', 'Lead 2 call must retain telecaller_id=harish')
 
     assert.equal(call3.endReason, 'telecaller_busy', 'Lead 2 redial must also be flagged telecaller_busy')
@@ -213,12 +251,17 @@ async function main() {
 
     const busyMsgs = await col('messages').find({ leadPhone: PHONE_2, kind: 'busy_callback' }).toArray()
     assert.equal(busyMsgs.length, 1, 'Busy callback WhatsApp message must fire once and dedupe within 5 minutes')
-    assert.match(busyMsgs[0].text, /currently assisting another caller/i)
+    assert.match(busyMsgs[0].text, /^Hi there, .*currently assisting another caller/i, 'Numeric-only lead name must fall back to "there"')
+
+    const genericMissedMsgs = graphRequests.filter(
+      r => r.url.endsWith('/messages') && r.body?.to === PHONE_2 && /missed your WhatsApp call/i.test(r.body?.text?.body || '')
+    )
+    assert.equal(genericMissedMsgs.length, 0, 'Generic missed-call fallback must NOT fire after telecaller_busy')
 
     console.log('✅ All concurrent busy-telecaller assertions passed:')
     console.log(`   - Lead 1 (${CALL_1}) remained active (${call1.status})`)
-    console.log(`   - Lead 2 (${CALL_2}) rejected with endReason=${call2.endReason}, Meta reject sent`)
-    console.log(`   - Busy callback message logged once & deduped on redial (${CALL_3})`)
+    console.log(`   - Lead 2 (${CALL_2}) rejected with endReason=${call2.endReason}, Meta reject sent, terminate suppressed duplicate fallback`)
+    console.log(`   - Busy callback greeting used "Hi there, ..." & deduped on redial (${CALL_3})`)
   } finally {
     globalThis.fetch = origFetch
     await sseHarish?.close().catch(() => {})

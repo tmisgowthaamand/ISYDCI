@@ -546,7 +546,9 @@ async function sendBusyCallbackMessage({ waId, leadName, telecallerId, fetchImpl
     ? await col('admins').findOne({ username: telecallerId }, { projection: { displayName: 1 } }).catch(() => null)
     : null
   const telecallerDisplayName = tcAdmin?.displayName || telecallerId || 'Our representative'
-  const callerName = leadName || 'there'
+  const rawName = String(leadName || '').trim()
+  const isNumericOnly = !rawName || rawName === waId || /^[\d+\s-]+$/.test(rawName)
+  const callerName = isNumericOnly ? 'there' : rawName
   const bodyText = `Hi ${callerName}, ${telecallerDisplayName} is currently assisting another caller. We have noted your call and will call you right back.`
 
   let waMessageId = null
@@ -898,7 +900,8 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
       }
     } else if (event === 'terminate' || ['completed', 'missed', 'failed', 'rejected', 'no_answer'].includes(event)) {
       const existing = await CALLS().findOne({ callId })
-      const endReason = call.end_reason || call.reason || event
+      const isBusyRejected = existing?.endReason === 'telecaller_busy'
+      const endReason = isBusyRejected ? 'telecaller_busy' : (call.end_reason || call.reason || event)
       const durationSec =
         typeof call.duration === 'number'
           ? call.duration
@@ -910,13 +913,15 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
       const attended = !unattended && (Boolean(existing?.attended) || durationSec > 0)
 
       const finalStatus =
-        event === 'rejected'
-          ? 'rejected'
-          : event === 'failed'
-            ? 'failed'
-            : unattended
-              ? 'missed'
-              : 'completed'
+        isBusyRejected
+          ? 'missed'
+          : event === 'rejected'
+            ? 'rejected'
+            : event === 'failed'
+              ? 'failed'
+              : unattended
+                ? 'missed'
+                : 'completed'
 
       const { mediaId, directUrl } = extractRecordingMedia(call, value)
 
@@ -971,7 +976,19 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
       if (waId) {
         await logCallMessageInThread(waId, summaryText, callId, resolvedDir === 'outbound' ? 'out' : 'in')
         if (finalStatus === 'missed' && resolvedDir === 'inbound') {
-          await sendMissedCallFallback(waId)
+          const skipMissedFallback =
+            isBusyRejected ||
+            endReason === 'telecaller_busy' ||
+            Boolean(
+              await MESSAGES().findOne({
+                leadPhone: waId,
+                kind: 'busy_callback',
+                createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) },
+              })
+            )
+          if (!skipMissedFallback) {
+            await sendMissedCallFallback(waId)
+          }
         }
         if (resolvedDir === 'outbound') {
           if (attended) {
