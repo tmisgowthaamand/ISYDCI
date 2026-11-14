@@ -804,6 +804,12 @@ export default function AdminInbox() {
                           {isWeb ? 'Web' : 'WhatsApp'}
                         </span>
 
+                        {l.assignedTo && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            👤 {l.assignedTo}
+                          </span>
+                        )}
+
                         {l.district && (
                           <span className="text-[10px] text-slate-400 font-medium truncate max-w-[100px]">
                             {l.district}
@@ -978,7 +984,7 @@ export default function AdminInbox() {
                     <select
                       value={selected.assignedTo || ''}
                       onChange={e => patch({ assignedTo: e.target.value || null })}
-                      className="hidden 2xl:block px-2 py-1 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#007AFF] cursor-pointer"
+                      className="px-2 py-1 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#007AFF] cursor-pointer"
                       title="Assign lead to telecaller (Developer only)"
                     >
                       <option value="">Unassigned</option>
@@ -990,7 +996,7 @@ export default function AdminInbox() {
                     </select>
                   ) : (
                     <span
-                      className="hidden 2xl:inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-[11px] font-bold text-indigo-700 shrink-0"
                       title={isTelecaller ? 'Assigned to you' : 'Assigned telecaller (read-only)'}
                     >
                       👤 {selected.assignedTo || 'Unassigned'}
