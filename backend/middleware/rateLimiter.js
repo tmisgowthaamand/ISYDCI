@@ -45,6 +45,8 @@ export const generalApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
+    // Authenticated admin/telecaller sessions (polling Inbox, Calls, SSE) should never hit 429
+    if (req.admin) return true
     const url = req.originalUrl || req.url || ''
     // NEVER throttle Meta WhatsApp webhooks, Flow endpoints, or health monitors
     return (
