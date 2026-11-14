@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { ObjectId } from 'mongodb'
 import { col } from '../db/mongo.js'
 import { ROLES, generateSixDigitPasscode, hashPassword, normalizeTelecallerPhone } from './auth.js'
@@ -10,10 +11,42 @@ const SETTINGS = () => col('settings')
 const ROUTING_DOC_ID = 'telecaller_routing'
 export const ROUTING_MODES = ['manual', 'round_robin']
 
-function publicTelecaller(doc, assignedLeadCount = 0) {
+function passcodeKey() {
+  const s = process.env.JWT_SECRET || process.env.ADMIN_PASSWORD || 'isydci-dev-key'
+  return crypto.createHash('sha256').update(String(s)).digest()
+}
+
+function encryptPasscode(code) {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', passcodeKey(), iv)
+  const enc = Buffer.concat([cipher.update(String(code), 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return `${iv.toString('hex')}:${tag.toString('hex')}:${enc.toString('hex')}`
+}
+
+function decryptPasscode(stored) {
+  if (!stored || typeof stored !== 'string') return null
+  const parts = stored.split(':')
+  if (parts.length !== 3) return null
+  try {
+    const [ivHex, tagHex, encHex] = parts
+    const decipher = crypto.createDecipheriv('aes-256-gcm', passcodeKey(), Buffer.from(ivHex, 'hex'))
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'))
+    return decipher.update(Buffer.from(encHex, 'hex'), undefined, 'utf8') + decipher.final('utf8')
+  } catch {
+    return null
+  }
+}
+
+function publicTelecaller(doc, assignedLeadCount = 0, { includePasscode = false } = {}) {
   if (!doc) return null
-  const { _id, passwordHash, ...rest } = doc
-  return { id: String(_id), ...rest, assignedLeadCount }
+  const { _id, passwordHash, passcodeEnc, ...rest } = doc
+  return {
+    id: String(_id),
+    ...rest,
+    assignedLeadCount,
+    ...(includePasscode ? { passcode: decryptPasscode(passcodeEnc) } : {}),
+  }
 }
 
 export async function getRoutingConfig() {
@@ -48,7 +81,7 @@ export async function pickRoundRobinTelecaller() {
   return candidate?.username || null
 }
 
-export async function listTelecallers() {
+export async function listTelecallers({ includePasscode = false } = {}) {
   const list = await ADMINS()
     .find({ role: ROLES.TELECALLER })
     .sort({ createdAt: 1 })
@@ -61,7 +94,7 @@ export async function listTelecallers() {
     ])
     .toArray()
   const countMap = Object.fromEntries(counts.map(c => [c._id, c.count]))
-  return list.map(doc => publicTelecaller(doc, countMap[doc.username] || 0))
+  return list.map(doc => publicTelecaller(doc, countMap[doc.username] || 0, { includePasscode }))
 }
 
 export async function createTelecaller({ username, phone, displayName, createdBy }) {
@@ -88,6 +121,7 @@ export async function createTelecaller({ username, phone, displayName, createdBy
     username: cleanUsername,
     phone: normPhone || null,
     passwordHash: hashPassword(passcode),
+    passcodeEnc: encryptPasscode(passcode),
     role: ROLES.TELECALLER,
     displayName: String(displayName || '').trim() || cleanUsername,
     active: true,
@@ -110,7 +144,13 @@ export async function resetTelecallerPasscode(id) {
   const passcode = generateSixDigitPasscode()
   await ADMINS().updateOne(
     { _id: target._id },
-    { $set: { passwordHash: hashPassword(passcode), updatedAt: new Date().toISOString() } }
+    {
+      $set: {
+        passwordHash: hashPassword(passcode),
+        passcodeEnc: encryptPasscode(passcode),
+        updatedAt: new Date().toISOString(),
+      },
+    }
   )
   const updated = await ADMINS().findOne({ _id: target._id })
   return { telecaller: publicTelecaller(updated), passcode }

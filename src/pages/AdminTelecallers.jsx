@@ -9,6 +9,8 @@ export default function AdminTelecallers() {
   const [leads, setLeads] = useState([])
   const [form, setForm] = useState({ displayName: '', username: '', phone: '' })
   const [generatedCreds, setGeneratedCreds] = useState(null) // { username, phone, passcode }
+  const [revealedIds, setRevealedIds] = useState({})
+  const [copiedId, setCopiedId] = useState(null)
   const [copied, setCopied] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
@@ -72,6 +74,7 @@ export default function AdminTelecallers() {
         passcode: res.passcode,
       })
       setMsg(`New 6-digit passcode generated for ${tc.username}.`)
+      load()
     } catch (e) {
       setError(e.message)
     }
@@ -299,6 +302,7 @@ export default function AdminTelecallers() {
                 <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Telecaller</th>
                   <th className="py-3 px-4">Phone</th>
+                  <th className="py-3 px-4">6-Digit Code</th>
                   <th className="py-3 px-4">Assigned Leads</th>
                   <th className="py-3 px-4">Last Login</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -307,12 +311,14 @@ export default function AdminTelecallers() {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {telecallers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-xs text-slate-400">
+                    <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
                       No telecallers added yet.
                     </td>
                   </tr>
                 ) : (
-                  telecallers.map(tc => (
+                  telecallers.map(tc => {
+                    const isShown = Boolean(revealedIds[tc.id])
+                    return (
                     <tr key={tc.id} className="hover:bg-slate-50/60">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{tc.displayName || tc.username}</div>
@@ -320,6 +326,43 @@ export default function AdminTelecallers() {
                       </td>
                       <td className="py-3 px-4 text-xs font-mono text-slate-600">
                         {tc.phone ? `+${tc.phone}` : '—'}
+                      </td>
+                      <td className="py-3 px-4">
+                        {tc.passcode ? (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1">
+                            <span className="font-mono text-xs font-black tracking-widest text-slate-900">
+                              {isShown ? tc.passcode : '••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setRevealedIds(prev => ({ ...prev, [tc.id]: !prev[tc.id] }))}
+                              className="text-[11px] text-slate-500 hover:text-slate-900 cursor-pointer"
+                              title={isShown ? 'Hide passcode' : 'Show passcode'}
+                            >
+                              {isShown ? '🙈' : '👁'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(tc.passcode)
+                                setCopiedId(tc.id)
+                                setTimeout(() => setCopiedId(null), 1500)
+                              }}
+                              className="text-[11px] text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
+                              title="Copy 6-digit code"
+                            >
+                              {copiedId === tc.id ? '✓' : '📋'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => resetPasscode(tc)}
+                            className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md hover:bg-amber-100 cursor-pointer"
+                          >
+                            Generate Code
+                          </button>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
@@ -353,7 +396,7 @@ export default function AdminTelecallers() {
                         </button>
                       </td>
                     </tr>
-                  ))
+                  )})
                 )}
               </tbody>
             </table>

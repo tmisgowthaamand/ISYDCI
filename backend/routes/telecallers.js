@@ -14,10 +14,11 @@ import { logAudit } from '../services/audit.js'
 
 const router = Router()
 
-// Read-only telecaller directory & routing mode (Super Super Admin + Super Admin can view; Telecallers blocked)
-router.get('/', requireAuth(ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN), async (_req, res) => {
+// Read-only telecaller directory & routing mode (Super Super Admin + Super Admin can view; passcodes only for Super Super Admin)
+router.get('/', requireAuth(ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   try {
-    const [telecallers, routing] = await Promise.all([listTelecallers(), getRoutingConfig()])
+    const includePasscode = req.admin?.role === ROLES.SUPER_SUPER_ADMIN
+    const [telecallers, routing] = await Promise.all([listTelecallers({ includePasscode }), getRoutingConfig()])
     res.json({ success: true, telecallers, routing })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
