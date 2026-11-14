@@ -116,7 +116,12 @@ export default function GlobalIncomingCallBanner() {
         c => (c.call_direction || c.direction) === 'inbound' && ['ringing', 'pre_accepted', 'accepted', 'active'].includes(c.status)
       )
       if (inbound) {
-        setIncomingCall(prev => (prev?.callId === inbound.callId ? { ...prev, ...inbound } : inbound))
+        setIncomingCall(prev => {
+          if (prev && prev.callId !== inbound.callId && ['accepted', 'active', 'pre_accepted'].includes(prev.status)) {
+            return prev
+          }
+          return prev?.callId === inbound.callId ? { ...prev, ...inbound } : inbound
+        })
       } else {
         setIncomingCall(prev => {
           if (prev && ['accepted', 'active'].includes(prev.status)) cleanupMedia()
@@ -141,10 +146,20 @@ export default function GlobalIncomingCallBanner() {
           const isInbound = (c.call_direction || c.direction) === 'inbound'
           if (!isInbound) return
           if (['ringing', 'pre_accepted', 'accepted', 'active'].includes(c.status)) {
-            setIncomingCall(c)
+            setIncomingCall(prev => {
+              if (prev && prev.callId !== c.callId && ['accepted', 'active', 'pre_accepted'].includes(prev.status)) {
+                return prev
+              }
+              return prev?.callId === c.callId ? { ...prev, ...c } : c
+            })
           } else {
-            setIncomingCall(prev => (prev?.callId === c.callId ? null : prev))
-            cleanupMedia()
+            setIncomingCall(prev => {
+              if (prev?.callId === c.callId) {
+                cleanupMedia()
+                return null
+              }
+              return prev
+            })
           }
         } catch (_) {}
       })

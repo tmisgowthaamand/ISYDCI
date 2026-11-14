@@ -415,6 +415,19 @@ export async function preAcceptCall(callId, sdpAnswer) {
   return { call: updated, raw: data }
 }
 
+export async function isTelecallerBusy(telecallerId, { excludeCallId = null } = {}) {
+  const tc = String(telecallerId || '').trim()
+  if (!tc) return null
+  const staleCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000)
+  const filter = {
+    telecaller_id: tc,
+    status: { $in: ['accepted', 'connected', 'pre_accepted', 'active'] },
+    updatedAt: { $gte: staleCutoff },
+  }
+  if (excludeCallId) filter.callId = { $ne: excludeCallId }
+  return CALLS().findOne(filter, { sort: { updatedAt: -1 } })
+}
+
 export async function acceptCall(callId, sdpAnswer, { telecallerId = null } = {}) {
   if (!callId || !sdpAnswer) throw new Error('callId and sdpAnswer are required')
   const existing = await CALLS().findOne({ callId })
@@ -422,6 +435,14 @@ export async function acceptCall(callId, sdpAnswer, { telecallerId = null } = {}
     const err = new Error('Call already accepted or assigned to another telecaller')
     err.status = 409
     throw err
+  }
+  if (telecallerId) {
+    const busyCall = await isTelecallerBusy(telecallerId, { excludeCallId: callId })
+    if (busyCall) {
+      const err = new Error('You already have an active call in progress')
+      err.status = 409
+      throw err
+    }
   }
   const data = await sendCallAction(
     callId,
@@ -509,6 +530,59 @@ async function logCallMessageInThread(waId, text, callId, direction = 'in') {
     })
     await LEADS().updateOne({ phone: waId }, { $set: { lastMessageAt: new Date(), updatedAt: new Date() } })
   } catch (_) {}
+}
+
+async function sendBusyCallbackMessage({ waId, leadName, telecallerId, fetchImpl = fetch } = {}) {
+  if (!waId) return { skipped: true, reason: 'no_waid' }
+  const dedupeCutoff = new Date(Date.now() - 5 * 60 * 1000)
+  const recent = await MESSAGES().findOne({
+    leadPhone: waId,
+    kind: 'busy_callback',
+    createdAt: { $gte: dedupeCutoff },
+  })
+  if (recent) return { skipped: true, reason: 'deduped_5m' }
+
+  const tcAdmin = telecallerId
+    ? await col('admins').findOne({ username: telecallerId }, { projection: { displayName: 1 } }).catch(() => null)
+    : null
+  const telecallerDisplayName = tcAdmin?.displayName || telecallerId || 'Our representative'
+  const callerName = leadName || 'there'
+  const bodyText = `Hi ${callerName}, ${telecallerDisplayName} is currently assisting another caller. We have noted your call and will call you right back.`
+
+  let waMessageId = null
+  const { token, phoneNumberId } = metaCredentials()
+  if (token && phoneNumberId) {
+    try {
+      const res = await fetchImpl(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: waId,
+          type: 'text',
+          text: { preview_url: false, body: bodyText },
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      waMessageId = data?.messages?.[0]?.id || null
+    } catch (_) {}
+  }
+
+  const now = new Date()
+  await MESSAGES().insertOne({
+    leadPhone: waId,
+    direction: 'out',
+    channel: 'whatsapp',
+    kind: 'busy_callback',
+    type: 'text',
+    text: bodyText,
+    waMessageId,
+    sentBy: 'meta',
+    createdAt: now,
+  })
+  await LEADS().updateOne({ phone: waId }, { $set: { lastMessageAt: now, updatedAt: now } }).catch(() => {})
+  return { sent: true, bodyText, waMessageId }
 }
 
 async function sendMissedCallFallback(waId) {
@@ -742,6 +816,54 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
         emitCallEvent('call_answered', { call: updated })
         await recordEvent('whatsapp_call', `Outbound call answered ${callId} (+${waId})`, call).catch(() => {})
       } else {
+        const assignedTelecaller = existing?.telecaller_id || lead?.assignedTo || null
+        const resolvedLeadName = lead?.name || lead?.whatsappName || member?.name || null
+
+        if (direction === 'inbound' && assignedTelecaller) {
+          const busyCall = await isTelecallerBusy(assignedTelecaller, { excludeCallId: callId })
+          if (busyCall) {
+            await sendCallAction(callId, 'reject').catch(() => null)
+            const busyDoc = {
+              callId,
+              waId,
+              rawWaId: rawFrom,
+              direction,
+              call_direction: direction,
+              attended: false,
+              telecaller_id: assignedTelecaller,
+              leadName: resolvedLeadName,
+              status: 'missed',
+              sdpSession: { type: sdpType, offer: sdp, answer: null },
+              startedAt: now,
+              answeredAt: null,
+              endedAt: now,
+              durationSec: 0,
+              duration_seconds: 0,
+              endReason: 'telecaller_busy',
+              memberId: member?.memberId || lead?.memberId || null,
+              leadId: lead?._id ? String(lead._id) : null,
+              recording_media_id: null,
+              recording_status: 'none',
+              recording_url: null,
+              recordingUrl: null,
+              transcript: null,
+              createdAt: existing?.createdAt || now,
+              updatedAt: now,
+            }
+            await CALLS().updateOne({ callId }, { $set: busyDoc }, { upsert: true })
+            await logCallMessageInThread(waId, '📵 Missed inbound WhatsApp call (telecaller busy)', callId, 'in')
+            await sendBusyCallbackMessage({
+              waId,
+              leadName: resolvedLeadName,
+              telecallerId: assignedTelecaller,
+              fetchImpl,
+            })
+            await recordEvent('whatsapp_call_busy', `Rejected concurrent call ${callId} (+${waId}) — @${assignedTelecaller} busy`, call).catch(() => {})
+            emitCallEvent('call_update', { call: busyDoc })
+            continue
+          }
+        }
+
         const doc = {
           callId,
           waId,
@@ -749,8 +871,8 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
           direction,
           call_direction: direction,
           attended: false,
-          telecaller_id: existing?.telecaller_id || lead?.assignedTo || null,
-          leadName: lead?.name || lead?.whatsappName || member?.name || null,
+          telecaller_id: assignedTelecaller,
+          leadName: resolvedLeadName,
           status: 'ringing',
           sdpSession: { type: sdpType, offer: sdp, answer: null },
           startedAt: now,
