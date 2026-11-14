@@ -11,7 +11,7 @@ import { registerFromFlow, parseDob, formatPhoneDisplay } from './flowEndpoint.j
 import { logWhatsAppInbound, logWhatsAppOutbound } from '../utils/liveLogger.js'
 import { upsertLeadFromInbound, recordOutbound, markCardIssued, updateMessageStatus } from '../services/leads.js'
 import { recordEvent } from '../services/audit.js'
-import { verifyMetaSignature, handleCallsWebhook, recordCallPermissionReply } from '../services/calling.js'
+import { verifyMetaSignature, handleCallsWebhook, recordCallPermissionReply, rollbackFailedPermissionRequest } from '../services/calling.js'
 
 const router = express.Router()
 
@@ -490,6 +490,7 @@ router.post('/', async (req, res) => {
       if (st.status === 'failed') {
         const errorDetail = (st.errors || []).map(e => `${e.code} ${e.title}`).join('; ')
         logWhatsAppOutbound({ recipient, kind: 'DELIVERY_FAILED', error: errorDetail })
+        rollbackFailedPermissionRequest(st.id, errorDetail).catch(() => {})
       } else if (st.status === 'delivered') {
         logWhatsAppOutbound({ recipient, kind: 'DELIVERED', messageId: st.id })
       } else if (st.status === 'read') {

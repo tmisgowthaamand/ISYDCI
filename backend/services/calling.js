@@ -241,6 +241,8 @@ export async function sendCallPermissionRequest(rawPhone, { bodyText } = {}) {
         status: existing?.status === 'accepted' ? existing.status : 'pending',
         requestTimestamps: kept,
         lastRequestAt: now,
+        lastRequestMessageId: msgId,
+        lastRequestError: null,
         updatedAt: now,
       },
       $setOnInsert: { createdAt: now },
@@ -252,6 +254,43 @@ export async function sendCallPermissionRequest(rawPhone, { bodyText } = {}) {
   recordOutbound(waId, { type: 'text', text: { body: `[Call Permission Request] ${text}` } }, msgId, 'meta').catch(() => {})
 
   return { messageId: msgId, waId, data }
+}
+
+/**
+ * Roll back a call_permission_request from rate-limit tracking if Meta asynchronously
+ * fails delivery (e.g. 131047 Re-engagement message outside the 24h customer window).
+ */
+export async function rollbackFailedPermissionRequest(waMessageId, errorDetail = '') {
+  if (!waMessageId) return null
+  const doc = await PERMISSIONS().findOne({ lastRequestMessageId: waMessageId })
+  if (!doc) return null
+
+  const now = new Date()
+  const timestamps = Array.isArray(doc.requestTimestamps) ? [...doc.requestTimestamps] : []
+  if (timestamps.length > 0) {
+    const targetMs = doc.lastRequestAt ? new Date(doc.lastRequestAt).getTime() : NaN
+    const idx = Number.isNaN(targetMs)
+      ? timestamps.length - 1
+      : timestamps.findIndex(t => new Date(t).getTime() === targetMs)
+    if (idx >= 0) timestamps.splice(idx, 1)
+    else timestamps.pop()
+  }
+
+  const nextStatus = doc.status === 'pending' ? 'none' : doc.status
+  await PERMISSIONS().updateOne(
+    { _id: doc._id },
+    {
+      $set: {
+        status: nextStatus,
+        requestTimestamps: timestamps,
+        lastRequestMessageId: null,
+        lastRequestFailedAt: now,
+        lastRequestError: errorDetail || null,
+        updatedAt: now,
+      },
+    }
+  )
+  return { waId: doc.waId, rolledBack: true, status: nextStatus }
 }
 
 export async function recordCallPermissionReply(rawPhone, responseValue, rawPayload = {}, now = new Date()) {
