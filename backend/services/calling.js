@@ -260,7 +260,7 @@ export async function recordCallPermissionReply(rawPhone, responseValue, rawPayl
 
   const normalized = String(responseValue || '').toLowerCase()
   const accepted = ['accept', 'accepted', 'allow', 'allowed', 'yes'].includes(normalized)
-  const isPermanent = Boolean(rawPayload?.is_permanent)
+  const isPermanent = Boolean(rawPayload?.is_permanent ?? rawPayload?.call_permission_reply?.is_permanent)
   const status = accepted ? 'accepted' : 'rejected'
   const expiresAt = accepted ? (isPermanent ? null : new Date(now.getTime() + PERMISSION_TTL_MS)) : null
 
@@ -274,6 +274,7 @@ export async function recordCallPermissionReply(rawPhone, responseValue, rawPayl
         permissionExpiresAt: expiresAt,
         lastReplyAt: now,
         lastReplyRaw: rawPayload,
+        ...(accepted ? { consecutiveUnansweredOutbound: 0, unansweredWarning: false, revokedReason: null } : {}),
         updatedAt: now,
       },
       $setOnInsert: { createdAt: now, requestTimestamps: [] },
@@ -416,6 +417,12 @@ export async function preAcceptCall(callId, sdpAnswer) {
 
 export async function acceptCall(callId, sdpAnswer, { telecallerId = null } = {}) {
   if (!callId || !sdpAnswer) throw new Error('callId and sdpAnswer are required')
+  const existing = await CALLS().findOne({ callId })
+  if (existing?.attended || (existing?.telecaller_id && telecallerId && existing.telecaller_id !== telecallerId)) {
+    const err = new Error('Call already accepted or assigned to another telecaller')
+    err.status = 409
+    throw err
+  }
   const data = await sendCallAction(
     callId,
     'accept',
@@ -423,7 +430,6 @@ export async function acceptCall(callId, sdpAnswer, { telecallerId = null } = {}
     { recording: META_RECORDING_CONFIG }
   )
   const now = new Date()
-  const existing = await CALLS().findOne({ callId })
   await CALLS().updateOne(
     { callId },
     {
@@ -431,13 +437,19 @@ export async function acceptCall(callId, sdpAnswer, { telecallerId = null } = {}
         status: 'accepted',
         attended: true,
         recording_status: existing?.recording_status === 'ready' ? 'ready' : 'pending',
-        ...(telecallerId ? { telecaller_id: telecallerId } : {}),
+        ...(telecallerId && !existing?.telecaller_id ? { telecaller_id: telecallerId } : {}),
         answeredAt: existing?.answeredAt || now,
         'sdpSession.answer': sdpAnswer,
         updatedAt: now,
       },
     }
   )
+  if (existing?.waId) {
+    await PERMISSIONS().updateOne(
+      { waId: existing.waId },
+      { $set: { requestTimestamps: [], consecutiveUnansweredOutbound: 0, unansweredWarning: false, updatedAt: now } }
+    ).catch(() => {})
+  }
   const updated = await CALLS().findOne({ callId })
   emitCallEvent('call_update', { call: updated })
   return { call: updated, raw: data }
@@ -721,6 +733,12 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
           }
         )
         const updated = await CALLS().findOne({ callId })
+        if (waId) {
+          await PERMISSIONS().updateOne(
+            { waId },
+            { $set: { requestTimestamps: [], consecutiveUnansweredOutbound: 0, unansweredWarning: false, updatedAt: now } }
+          ).catch(() => {})
+        }
         emitCallEvent('call_answered', { call: updated })
         await recordEvent('whatsapp_call', `Outbound call answered ${callId} (+${waId})`, call).catch(() => {})
       } else {
@@ -822,15 +840,51 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
       }
 
       const updated = await CALLS().findOne({ callId })
-      const dirLabel = (updated?.call_direction || updated?.direction) === 'outbound' ? 'Outbound' : 'Inbound'
+      const resolvedDir = updated?.call_direction || updated?.direction || existing?.direction || 'inbound'
+      const dirLabel = resolvedDir === 'outbound' ? 'Outbound' : 'Inbound'
       const summaryText =
         finalStatus === 'missed'
           ? `📵 Missed ${dirLabel.toLowerCase()} WhatsApp call`
           : `📞 ${dirLabel} WhatsApp call · ${durationSec}s (${attended ? 'Answered' : finalStatus})`
       if (waId) {
-        await logCallMessageInThread(waId, summaryText, callId, existing?.direction === 'outbound' ? 'out' : 'in')
-        if (finalStatus === 'missed') {
+        await logCallMessageInThread(waId, summaryText, callId, resolvedDir === 'outbound' ? 'out' : 'in')
+        if (finalStatus === 'missed' && resolvedDir === 'inbound') {
           await sendMissedCallFallback(waId)
+        }
+        if (resolvedDir === 'outbound') {
+          if (attended) {
+            await PERMISSIONS().updateOne(
+              { waId },
+              { $set: { requestTimestamps: [], consecutiveUnansweredOutbound: 0, unansweredWarning: false, updatedAt: now } }
+            ).catch(() => {})
+          } else {
+            const permRes = await PERMISSIONS().findOneAndUpdate(
+              { waId },
+              { $inc: { consecutiveUnansweredOutbound: 1 }, $set: { updatedAt: now } },
+              { returnDocument: 'after' }
+            ).catch(() => null)
+            const count = permRes?.consecutiveUnansweredOutbound || 0
+            if (count >= 4) {
+              await PERMISSIONS().updateOne(
+                { waId },
+                {
+                  $set: {
+                    status: 'rejected',
+                    isPermanent: false,
+                    permissionExpiresAt: null,
+                    unansweredWarning: true,
+                    revokedReason: '4_consecutive_unanswered',
+                    updatedAt: now,
+                  },
+                }
+              ).catch(() => {})
+            } else if (count >= 2) {
+              await PERMISSIONS().updateOne(
+                { waId },
+                { $set: { unansweredWarning: true, updatedAt: now } }
+              ).catch(() => {})
+            }
+          }
         }
       }
       await recordEvent('whatsapp_call', `Call ${finalStatus} ${callId} (${durationSec}s)`, call).catch(() => {})

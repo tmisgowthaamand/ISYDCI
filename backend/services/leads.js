@@ -44,6 +44,7 @@ export const reversePhone = p => String(p || '').split('').reverse().join('')
 export function leadPhone(raw) {
   const digits = String(raw || '').replace(/\D/g, '')
   if (!digits) return ''
+  if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`
   return digits.length === 10 ? `91${digits}` : digits
 }
 

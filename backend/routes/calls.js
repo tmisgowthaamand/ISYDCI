@@ -1,6 +1,8 @@
 import fs from 'fs'
 import { Router } from 'express'
+import { col } from '../db/mongo.js'
 import { requireAuth, ROLES } from '../services/auth.js'
+import { leadPhone } from '../services/leads.js'
 import {
   acceptCall,
   callEvents,
@@ -23,6 +25,29 @@ import { exportCallsCsv } from '../services/callReports.js'
 
 const router = Router()
 router.use(requireAuth())
+
+async function assertTelecallerLeadAccess(rawPhone, admin) {
+  if (admin?.role !== ROLES.TELECALLER) return
+  const waId = leadPhone(rawPhone)
+  const lead = waId ? await col('leads').findOne({ phone: waId }, { projection: { assignedTo: 1 } }) : null
+  const assigned = String(lead?.assignedTo || '').trim().toLowerCase()
+  const username = String(admin?.username || '').trim().toLowerCase()
+  if (!assigned || !username || assigned !== username) {
+    const err = new Error('Forbidden: this lead is not assigned to you')
+    err.status = 403
+    throw err
+  }
+}
+
+async function assertTelecallerCallAccess(callId, admin) {
+  if (admin?.role !== ROLES.TELECALLER) return
+  const call = await col('whatsapp_calls').findOne({ callId }, { projection: { telecaller_id: 1, waId: 1 } })
+  if (call && !canAdminReceiveCall(call, admin)) {
+    const err = new Error('Forbidden: this call is assigned to another telecaller')
+    err.status = 403
+    throw err
+  }
+}
 
 // GET /api/calls/settings — inspect current calling & SIP configuration
 router.get('/settings', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (req, res) => {
@@ -143,6 +168,7 @@ router.get('/lead/:phone', async (req, res) => {
 router.post('/permission-request', async (req, res) => {
   try {
     const { phone, bodyText } = req.body || {}
+    await assertTelecallerLeadAccess(phone, req.admin)
     const result = await sendCallPermissionRequest(phone, { bodyText })
     res.json({ success: true, ...result })
   } catch (err) {
@@ -159,6 +185,7 @@ router.post('/permission-request', async (req, res) => {
 router.post('/outbound', async (req, res) => {
   try {
     const { phone, sdpOffer } = req.body || {}
+    await assertTelecallerLeadAccess(phone, req.admin)
     const telecallerId = req.admin?.username || req.admin?.sub || null
     const result = await initiateOutboundCall(phone, sdpOffer, { telecallerId })
     res.json({ success: true, ...result })
@@ -176,6 +203,7 @@ router.post('/outbound', async (req, res) => {
 // POST /api/calls/:callId/pre-accept
 router.post('/:callId/pre-accept', async (req, res) => {
   try {
+    await assertTelecallerCallAccess(req.params.callId, req.admin)
     const { sdpAnswer } = req.body || {}
     const result = await preAcceptCall(req.params.callId, sdpAnswer)
     res.json({ success: true, ...result })
@@ -187,6 +215,7 @@ router.post('/:callId/pre-accept', async (req, res) => {
 // POST /api/calls/:callId/accept
 router.post('/:callId/accept', async (req, res) => {
   try {
+    await assertTelecallerCallAccess(req.params.callId, req.admin)
     const { sdpAnswer } = req.body || {}
     const telecallerId = req.admin?.username || req.admin?.sub || null
     const result = await acceptCall(req.params.callId, sdpAnswer, { telecallerId })
@@ -199,6 +228,7 @@ router.post('/:callId/accept', async (req, res) => {
 // POST /api/calls/:callId/reject
 router.post('/:callId/reject', async (req, res) => {
   try {
+    await assertTelecallerCallAccess(req.params.callId, req.admin)
     const result = await rejectCall(req.params.callId)
     res.json({ success: true, ...result })
   } catch (err) {
@@ -209,6 +239,7 @@ router.post('/:callId/reject', async (req, res) => {
 // POST /api/calls/:callId/terminate
 router.post('/:callId/terminate', async (req, res) => {
   try {
+    await assertTelecallerCallAccess(req.params.callId, req.admin)
     const result = await terminateCall(req.params.callId)
     res.json({ success: true, ...result })
   } catch (err) {
