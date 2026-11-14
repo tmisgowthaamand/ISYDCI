@@ -41,11 +41,12 @@ export default function AdminLogin() {
             role: data.user?.role || 'super_admin',
             roleLabel: data.user?.roleLabel || 'Super Admin',
             isDeveloper: Boolean(data.user?.isDeveloper),
+            isTelecaller: Boolean(data.user?.isTelecaller || data.user?.role === 'telecaller'),
             displayName: data.user?.displayName || data.user?.username || username.trim(),
             loginTime: new Date().toISOString(),
           })
         )
-        navigate('/admin/dashboard')
+        navigate(data.user?.role === 'telecaller' ? '/admin/telecaller' : '/admin/dashboard')
       } else {
         setError(data.message || 'Invalid username or password. Check backend .env credentials.')
       }
@@ -114,7 +115,7 @@ export default function AdminLogin() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Username
+                Username or Phone Number
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
@@ -127,7 +128,7 @@ export default function AdminLogin() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter admin username"
+                  placeholder="Enter username or 10-digit phone"
                   className="w-full bg-slate-50/80 border border-slate-200/90 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all font-medium"
                   autoFocus
                   required
@@ -137,7 +138,7 @@ export default function AdminLogin() {
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Password
+                Password / 6-Digit Passcode
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">

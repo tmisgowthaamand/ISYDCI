@@ -29,9 +29,11 @@ router.post('/login', loginLimiter, async (req, res) => {
         id: admin.id,
         username: admin.username,
         displayName: admin.displayName,
+        phone: admin.phone || null,
         role: admin.role,
         roleLabel: ROLE_LABEL[admin.role],
         isDeveloper: admin.role === ROLES.SUPER_SUPER_ADMIN,
+        isTelecaller: admin.role === ROLES.TELECALLER,
         loginTime: new Date().toISOString(),
       },
     })
@@ -48,9 +50,11 @@ router.get('/me', requireAuth(), (req, res) => {
     user: {
       id: req.admin.sub,
       username: req.admin.username,
+      phone: req.admin.phone || null,
       role: req.admin.role,
       roleLabel: ROLE_LABEL[req.admin.role],
       isDeveloper: req.admin.role === ROLES.SUPER_SUPER_ADMIN,
+      isTelecaller: req.admin.role === ROLES.TELECALLER,
       expiresAt: new Date(req.admin.exp * 1000).toISOString(),
     },
   })

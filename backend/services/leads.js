@@ -3,6 +3,7 @@
 // not at registration. One lead per phone number. Built for 10 lakh+ rows: every query is indexed and paged.
 import { col } from '../db/mongo.js'
 import { phoneKey } from '../db/db.js'
+import { pickRoundRobinTelecaller } from './telecallers.js'
 
 export const LEAD_STATUS = {
   NEW: 'new',
@@ -72,6 +73,10 @@ async function upsertLead(phone, { setOnInsert = {}, set = {}, status, source })
     $setOnInsert: { phone, source: source || 'whatsapp', createdAt: now, firstContactAt: now, notes: [], tags: [], ...setOnInsert },
   }
   if (!existing && source) update.$setOnInsert.source = source
+  if (!existing && !set.assignedTo && !setOnInsert.assignedTo) {
+    const rr = await pickRoundRobinTelecaller().catch(() => null)
+    if (rr) update.$setOnInsert.assignedTo = rr
+  }
   if (existing && existing.status !== nextStatus) {
     update.$push = { statusHistory: { from: existing.status, to: nextStatus, at: now } }
   } else if (!existing) {
@@ -341,14 +346,15 @@ export async function deleteLead(rawPhone) {
 // row at 10 lakh leads), cached for 20 s so the dashboard never hammers the database.
 let statsCache = { at: 0, value: null }
 export async function leadStats(opts = {}) {
-  if (!opts.force && statsCache.value && Date.now() - statsCache.at < 5000) return statsCache.value
+  const baseFilter = opts.assignedTo ? { assignedTo: opts.assignedTo } : {}
+  if (!opts.assignedTo && !opts.force && statsCache.value && Date.now() - statsCache.at < 5000) return statsCache.value
   const statuses = Object.values(LEAD_STATUS)
   const [statusCounts, sourceCounts, total, today, unread] = await Promise.all([
-    Promise.all(statuses.map(s => LEADS().countDocuments({ status: s }))),
-    Promise.all(LEAD_SOURCES.map(s => LEADS().countDocuments({ source: s }))),
-    LEADS().countDocuments({}),
-    LEADS().countDocuments({ createdAt: { $gte: new Date(Date.now() - 24 * 3600 * 1000) } }),
-    LEADS().countDocuments({ unread: true }),
+    Promise.all(statuses.map(s => LEADS().countDocuments({ ...baseFilter, status: s }))),
+    Promise.all(LEAD_SOURCES.map(s => LEADS().countDocuments({ ...baseFilter, source: s }))),
+    LEADS().countDocuments(baseFilter),
+    LEADS().countDocuments({ ...baseFilter, createdAt: { $gte: new Date(Date.now() - 24 * 3600 * 1000) } }),
+    LEADS().countDocuments({ ...baseFilter, unread: true }),
   ])
   const status = {}
   statuses.forEach((s, i) => (status[s] = statusCounts[i]))

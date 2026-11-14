@@ -25,6 +25,8 @@ import AdminProviders from './pages/AdminProviders.jsx'
 import AdminDevTools from './pages/AdminDevTools.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import AdminAudit from './pages/AdminAudit.jsx'
+import AdminTelecallers from './pages/AdminTelecallers.jsx'
+import TelecallerDashboard from './pages/TelecallerDashboard.jsx'
 
 export default function App() {
   return (
@@ -68,7 +70,9 @@ export default function App() {
           <Route path="leads" element={<AdminLeads preset="all" />} />
           <Route path="incomplete" element={<AdminLeads preset="incomplete" />} />
           <Route path="templates" element={<AdminTemplates />} />
+          <Route path="telecaller" element={<TelecallerDashboard />} />
           {/* DEVELOPER MODE (Super Super Admin only — AdminLayout redirects other roles, backend returns 403) */}
+          <Route path="dev/telecallers" element={<AdminTelecallers />} />
           <Route path="dev/providers" element={<AdminProviders />} />
           <Route path="dev/logs" element={<AdminDevTools mode="logs" />} />
           <Route path="dev/flow" element={<AdminDevTools mode="flow" />} />

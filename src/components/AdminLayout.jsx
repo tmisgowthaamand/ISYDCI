@@ -10,6 +10,7 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const isDeveloper = role === 'super_super_admin'
+  const isTelecaller = role === 'telecaller'
 
   // Authentication Guard (token + role come from /api/auth/login; the backend re-checks every request)
   useEffect(() => {
@@ -23,10 +24,24 @@ export default function AdminLayout() {
       if (parsed && parsed.token && parsed.user) {
         setAdminUser(parsed.displayName || parsed.user)
         setRole(parsed.role || 'super_admin')
-        setRoleLabel(parsed.roleLabel || (parsed.role === 'super_super_admin' ? 'Super Super Admin (Developer)' : 'Super Admin'))
-        // developer-only pages are never shown to a Super Admin
+        setRoleLabel(
+          parsed.roleLabel ||
+            (parsed.role === 'super_super_admin'
+              ? 'Super Super Admin (Developer)'
+              : parsed.role === 'telecaller'
+                ? 'Telecaller'
+                : 'Super Admin')
+        )
+        // developer-only pages are never shown to a Super Admin or Telecaller
         if (location.pathname.startsWith('/admin/dev') && parsed.role !== 'super_super_admin') {
-          navigate('/admin/dashboard')
+          navigate(parsed.role === 'telecaller' ? '/admin/telecaller' : '/admin/dashboard')
+        }
+        // telecallers only access their dedicated dashboard, inbox, and assigned leads
+        if (
+          parsed.role === 'telecaller' &&
+          !['/admin/telecaller', '/admin/inbox', '/admin/leads'].some(p => location.pathname.startsWith(p))
+        ) {
+          navigate('/admin/telecaller')
         }
       } else {
         localStorage.removeItem('isydci_admin_auth')
@@ -129,6 +144,7 @@ export default function AdminLayout() {
 
   // GROUP 4: DEVELOPER MODE (Super Super Admin only)
   const devNavItems = [
+    { name: 'Telecallers & Routing', path: '/admin/dev/telecallers', icon: icon(<><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></>) },
     { name: 'Providers', path: '/admin/dev/providers', icon: icon(<><path d="M12 2v4" /><path d="M12 18v4" /><path d="m4.93 4.93 2.83 2.83" /><path d="m16.24 16.24 2.83 2.83" /><path d="M2 12h4" /><path d="M18 12h4" /><circle cx="12" cy="12" r="4" /></>) },
     { name: 'Webhook & Flow Logs', path: '/admin/dev/logs', icon: icon(<><path d="M4 4h16v16H4z" /><path d="M8 9h8" /><path d="M8 13h6" /><path d="M8 17h4" /></>) },
     { name: 'Flow Deploy', path: '/admin/dev/flow', icon: icon(<><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>) },
@@ -209,19 +225,27 @@ export default function AdminLayout() {
 
           {/* Navigation Groups */}
           <div className="p-3 space-y-5 overflow-y-auto max-h-[calc(100vh-170px)] custom-scrollbar-dark">
-            
-            {/* GROUP 1: ACCESS */}
-            {renderGroup('ACCESS', accessNavItems)}
+            {isTelecaller ? (
+              renderGroup('TELECALLER DESK', [
+                { name: 'Telecaller Dashboard', path: '/admin/telecaller', icon: icon(<><rect width="7" height="9" x="3" y="3" rx="1.5" /><rect width="7" height="5" x="14" y="3" rx="1.5" /><rect width="7" height="9" x="14" y="12" rx="1.5" /><rect width="7" height="5" x="3" y="16" rx="1.5" /></>) },
+                { name: 'Inbox', path: '/admin/inbox', icon: crmNavItems[0].icon },
+                { name: 'My Leads', path: '/admin/leads', icon: crmNavItems[1].icon },
+              ])
+            ) : (
+              <>
+                {/* GROUP 1: ACCESS */}
+                {renderGroup('ACCESS', accessNavItems)}
 
-            {/* GROUP 2: WHATSAPP BOT */}
-            {renderGroup('WHATSAPP BOT', whatsappNavItems)}
+                {/* GROUP 2: WHATSAPP BOT */}
+                {renderGroup('WHATSAPP BOT', whatsappNavItems)}
 
-            {/* GROUP 3: CRM — leads, inbox, templates (Super Admin + Developer) */}
-            {renderGroup('CRM', crmNavItems)}
+                {/* GROUP 3: CRM — leads, inbox, templates (Super Admin + Developer) */}
+                {renderGroup('CRM', crmNavItems)}
 
-            {/* GROUP 4: DEVELOPER MODE — only rendered for the Super Super Admin */}
-            {isDeveloper && renderGroup('Developer Mode', devNavItems, 'amber')}
-
+                {/* GROUP 4: DEVELOPER MODE — only rendered for the Super Super Admin */}
+                {isDeveloper && renderGroup('Developer Mode', devNavItems, 'amber')}
+              </>
+            )}
           </div>
         </div>
 
@@ -229,7 +253,7 @@ export default function AdminLayout() {
         <div className="p-3 border-t border-slate-800/80 bg-[#091021]">
           <div className="text-[11px] text-slate-400 px-3 py-1 font-medium flex items-center justify-between">
             <span className="truncate" title={`${adminUser} · ${roleLabel}`}>
-              {adminUser} &middot; <span className={isDeveloper ? 'text-amber-300' : 'text-slate-300'}>{isDeveloper ? 'Developer' : 'Super Admin'}</span>
+              {adminUser} &middot; <span className={isDeveloper ? 'text-amber-300' : isTelecaller ? 'text-blue-300' : 'text-slate-300'}>{isDeveloper ? 'Developer' : isTelecaller ? 'Telecaller' : 'Super Admin'}</span>
             </span>
             <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-xs shadow-emerald-400/50 shrink-0"></span>
           </div>

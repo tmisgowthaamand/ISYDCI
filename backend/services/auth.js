@@ -5,10 +5,12 @@ import { col } from '../db/mongo.js'
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   SUPER_SUPER_ADMIN: 'super_super_admin',
+  TELECALLER: 'telecaller',
 }
 export const ROLE_LABEL = {
   super_admin: 'Super Admin',
   super_super_admin: 'Super Super Admin (Developer)',
+  telecaller: 'Telecaller',
 }
 const TOKEN_TTL_SECONDS = 12 * 3600
 
@@ -95,13 +97,31 @@ export async function ensureSeedAdmins() {
   console.log(`👤 [Auth] admin accounts ready: ${n} (seeded from .env: ${seeds.filter(s => s.username && s.password).map(s => `${s.username}=${s.role}`).join(', ') || 'none'})`)
 }
 
-export async function authenticate(username, password) {
-  const doc = await ADMINS().findOne({ username: String(username || '').trim() })
+export function generateSixDigitPasscode() {
+  return String(crypto.randomInt(100000, 1000000))
+}
+
+export function normalizeTelecallerPhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.length === 10 ? `91${digits}` : digits
+}
+
+export async function authenticate(usernameOrPhone, password) {
+  const raw = String(usernameOrPhone || '').trim()
+  if (!raw) return null
+  const digits = raw.replace(/\D/g, '')
+  const orClauses = [{ username: raw }]
+  if (digits.length >= 10) {
+    const last10 = digits.slice(-10)
+    orClauses.push({ phone: { $in: [digits, last10, `91${last10}`, `+91${last10}`, `+${digits}`] } })
+  }
+  const doc = await ADMINS().findOne({ $or: orClauses })
   if (!doc || doc.active === false) return null
   if (!verifyPassword(password, doc.passwordHash)) return null
   await ADMINS().updateOne({ _id: doc._id }, { $set: { lastLoginAt: new Date().toISOString() } })
   const admin = publicAdmin(doc)
-  const token = signToken({ sub: admin.id, username: admin.username, role: admin.role })
+  const token = signToken({ sub: admin.id, username: admin.username, role: admin.role, phone: admin.phone || null })
   return { admin, token }
 }
 

@@ -85,9 +85,10 @@ router.get('/events', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { phone, telecaller_id: telecallerId, direction, attended, limit } = req.query
+    const scopedTelecaller = req.admin?.role === ROLES.TELECALLER ? req.admin.username : telecallerId
     const calls = await listCallLogs({
       phone,
-      telecallerId,
+      telecallerId: scopedTelecaller,
       direction,
       attended: attended === 'true' ? true : attended === 'false' ? false : undefined,
       limit: parseInt(limit, 10) || 100,
@@ -102,8 +103,9 @@ router.get('/', async (req, res) => {
 router.get('/lead/:phone', async (req, res) => {
   try {
     const { telecaller_id: telecallerId, direction } = req.query
+    const scopedTelecaller = req.admin?.role === ROLES.TELECALLER ? req.admin.username : telecallerId
     const [calls, permission] = await Promise.all([
-      listCallsForLead(req.params.phone, { telecallerId, direction }),
+      listCallsForLead(req.params.phone, { telecallerId: scopedTelecaller, direction }),
       getCallPermission(req.params.phone),
     ])
     res.json({ success: true, calls, permission })
@@ -194,6 +196,9 @@ router.get('/:callId/recording', async (req, res) => {
   try {
     const resolved = await resolveRecordingFile(req.params.callId)
     if (!resolved) return res.status(404).json({ success: false, message: 'Call not found' })
+    if (req.admin?.role === ROLES.TELECALLER && resolved.call?.telecaller_id !== req.admin.username) {
+      return res.status(403).json({ success: false, message: 'This call recording is not assigned to you' })
+    }
     if (resolved.unavailable) {
       return res.status(404).json({ success: false, message: 'Recording not available for this call' })
     }

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth } from '../services/auth.js'
+import { requireAuth, ROLES } from '../services/auth.js'
 import {
   listLeads, leadStats, getLead, getMessages, markRead, updateLead, addNote, createManualLead,
   exportLeadsCsv, saveWebDraft, upsertLeadFromLeadAd, recordOutbound, LEAD_STATUS_LABEL, LEAD_SOURCES, sweepIncomplete,
@@ -59,12 +59,20 @@ router.post('/facebook-webhook', async (req, res) => {
   }
 })
 
-// ---------------------------------------------------------------- admin (both roles)
+// ---------------------------------------------------------------- admin / telecaller
+
+async function ensureTelecallerLeadAccess(req, phone) {
+  if (req.admin?.role !== ROLES.TELECALLER) return true
+  const lead = await getLead(phone)
+  if (!lead) return 'not_found'
+  return lead.assignedTo === req.admin.username
+}
 
 router.get('/', requireAuth(), async (req, res) => {
   try {
     const { q, status, source, assignedTo, adId, from, to, page, limit, sort } = req.query
-    const result = await listLeads({ q, status, source, assignedTo, adId, from, to, sort, page: Math.max(1, parseInt(page) || 1), limit: Math.min(200, parseInt(limit) || 50) })
+    const scopedAssignee = req.admin?.role === ROLES.TELECALLER ? req.admin.username : assignedTo
+    const result = await listLeads({ q, status, source, assignedTo: scopedAssignee, adId, from, to, sort, page: Math.max(1, parseInt(page) || 1), limit: Math.min(200, parseInt(limit) || 50) })
     res.json({ success: true, ...result, statusLabels: LEAD_STATUS_LABEL, sources: LEAD_SOURCES })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
@@ -74,13 +82,14 @@ router.get('/', requireAuth(), async (req, res) => {
 router.get('/stats', requireAuth(), async (req, res) => {
   try {
     const force = req.query.fresh === '1' || req.query.nocache === '1'
-    res.json({ success: true, stats: await leadStats({ force }) })
+    const assignedTo = req.admin?.role === ROLES.TELECALLER ? req.admin.username : undefined
+    res.json({ success: true, stats: await leadStats({ force, assignedTo }) })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
   }
 })
 
-router.get('/export', requireAuth(), async (req, res) => {
+router.get('/export', requireAuth(ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const filter = {}
     if (req.query.status) filter.status = { $in: String(req.query.status).split(',') }
@@ -94,13 +103,13 @@ router.get('/export', requireAuth(), async (req, res) => {
   }
 })
 
-router.post('/sweep', requireAuth(), async (req, res) => {
+router.post('/sweep', requireAuth(ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   const parsed = parseInt(req.body?.hours)
   const hours = Number.isFinite(parsed) ? Math.max(0, parsed) : 24
   res.json({ success: true, marked: await sweepIncomplete(hours) })
 })
 
-router.post('/', requireAuth(), async (req, res) => {
+router.post('/', requireAuth(ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     res.status(201).json({ success: true, lead: await createManualLead(req.body || {}, req.admin.username) })
   } catch (error) {
@@ -112,6 +121,9 @@ router.get('/:phone', requireAuth(), async (req, res) => {
   try {
     const lead = await getLead(req.params.phone)
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' })
+    if (req.admin?.role === ROLES.TELECALLER && lead.assignedTo !== req.admin.username) {
+      return res.status(403).json({ success: false, message: 'This lead is not assigned to you' })
+    }
     const messages = await getMessages(req.params.phone, { limit: Math.min(500, parseInt(req.query.limit) || 200) })
     res.json({ success: true, lead, messages })
   } catch (error) {
@@ -119,7 +131,7 @@ router.get('/:phone', requireAuth(), async (req, res) => {
   }
 })
 
-router.delete('/:phone', requireAuth(), async (req, res) => {
+router.delete('/:phone', requireAuth(ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN), async (req, res) => {
   try {
     const deleted = await deleteLead(req.params.phone)
     if (!deleted) return res.status(404).json({ success: false, message: 'Lead not found' })
@@ -131,6 +143,12 @@ router.delete('/:phone', requireAuth(), async (req, res) => {
 
 router.patch('/:phone', requireAuth(), async (req, res) => {
   try {
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'assignedTo') && req.admin?.role !== ROLES.SUPER_SUPER_ADMIN) {
+      return res.status(403).json({ success: false, message: 'Only Super Super Admin can assign leads to telecallers' })
+    }
+    const access = await ensureTelecallerLeadAccess(req, req.params.phone)
+    if (access === 'not_found') return res.status(404).json({ success: false, message: 'Lead not found' })
+    if (!access) return res.status(403).json({ success: false, message: 'This lead is not assigned to you' })
     res.json({ success: true, lead: await updateLead(req.params.phone, req.body || {}, req.admin.username) })
   } catch (error) {
     res.status(400).json({ success: false, message: error.message })
@@ -139,6 +157,9 @@ router.patch('/:phone', requireAuth(), async (req, res) => {
 
 router.post('/:phone/notes', requireAuth(), async (req, res) => {
   try {
+    const access = await ensureTelecallerLeadAccess(req, req.params.phone)
+    if (access === 'not_found') return res.status(404).json({ success: false, message: 'Lead not found' })
+    if (!access) return res.status(403).json({ success: false, message: 'This lead is not assigned to you' })
     res.json({ success: true, lead: await addNote(req.params.phone, req.body?.text, req.admin.username) })
   } catch (error) {
     res.status(400).json({ success: false, message: error.message })
@@ -146,6 +167,8 @@ router.post('/:phone/notes', requireAuth(), async (req, res) => {
 })
 
 router.post('/:phone/read', requireAuth(), async (req, res) => {
+  const access = await ensureTelecallerLeadAccess(req, req.params.phone)
+  if (!access || access === 'not_found') return res.status(403).json({ success: false, message: 'Access denied' })
   await markRead(req.params.phone)
   res.json({ success: true })
 })
@@ -153,6 +176,9 @@ router.post('/:phone/read', requireAuth(), async (req, res) => {
 // Free-text or image+caption+buttons reply (works inside the 24h customer service window)
 router.post('/:phone/reply', requireAuth(), async (req, res) => {
   try {
+    const access = await ensureTelecallerLeadAccess(req, req.params.phone)
+    if (access === 'not_found') return res.status(404).json({ success: false, message: 'Lead not found' })
+    if (!access) return res.status(403).json({ success: false, message: 'This lead is not assigned to you' })
     const text = String(req.body?.text || '').trim()
     const imageUrl = String(req.body?.imageUrl || '').trim()
     const footerText = String(req.body?.footerText || '').trim()
@@ -187,6 +213,9 @@ router.post('/:phone/reply', requireAuth(), async (req, res) => {
 
 router.post('/:phone/send-template', requireAuth(), async (req, res) => {
   try {
+    const access = await ensureTelecallerLeadAccess(req, req.params.phone)
+    if (access === 'not_found') return res.status(404).json({ success: false, message: 'Lead not found' })
+    if (!access) return res.status(403).json({ success: false, message: 'This lead is not assigned to you' })
     const to = String(req.params.phone).replace(/\D/g, '')
     const result = await sendTemplateTo(to, req.body?.templateId, req.body?.params || {}, req.admin.username)
     res.json({ success: true, messageId: result.messageId })

@@ -268,6 +268,23 @@ export default function AdminInbox() {
   const [selected, setSelected] = useState(null)
   const [messages, setMessages] = useState([])
   const [leadCalls, setLeadCalls] = useState({})
+  const [telecallers, setTelecallers] = useState([])
+  const authInfo = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('isydci_admin_auth') || '{}')
+    } catch {
+      return {}
+    }
+  })()
+  const isDeveloper = authInfo?.role === 'super_super_admin' || Boolean(authInfo?.isDeveloper)
+  const isTelecaller = authInfo?.role === 'telecaller'
+
+  useEffect(() => {
+    if (!isDeveloper) return
+    apiJson('/api/telecallers')
+      .then(d => setTelecallers(d.telecallers || []))
+      .catch(() => {})
+  }, [isDeveloper])
   const [reply, setReply] = useState('')
   const [replyImage, setReplyImage] = useState(null) // { url, templateName }
   const [note, setNote] = useState('')
@@ -956,16 +973,29 @@ export default function AdminInbox() {
                     ))}
                   </select>
 
-                  {/* Assignee Input (Desktop only) */}
-                  <div className="relative hidden 2xl:block">
-                    <input
-                      defaultValue={selected.assignedTo || ''}
-                      placeholder="Staff…"
-                      onBlur={e => e.target.value !== (selected.assignedTo || '') && patch({ assignedTo: e.target.value })}
-                      className="px-2 py-1 pl-5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 w-20 focus:w-28 transition-all focus:outline-none focus:border-[#007AFF] font-medium"
-                    />
-                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px]">👤</span>
-                  </div>
+                  {/* Telecaller Assignment: Super Super Admin can assign; Super Admin & Telecaller view read-only */}
+                  {isDeveloper ? (
+                    <select
+                      value={selected.assignedTo || ''}
+                      onChange={e => patch({ assignedTo: e.target.value || null })}
+                      className="hidden 2xl:block px-2 py-1 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 font-semibold focus:outline-none focus:border-[#007AFF] cursor-pointer"
+                      title="Assign lead to telecaller (Developer only)"
+                    >
+                      <option value="">Unassigned</option>
+                      {telecallers.filter(t => t.active !== false).map(t => (
+                        <option key={t.id} value={t.username}>
+                          👤 {t.displayName || t.username}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span
+                      className="hidden 2xl:inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600"
+                      title={isTelecaller ? 'Assigned to you' : 'Assigned telecaller (read-only)'}
+                    >
+                      👤 {selected.assignedTo || 'Unassigned'}
+                    </span>
+                  )}
 
                   {/* View Member Card Link (if member exists) */}
                   {selected.memberId && (
