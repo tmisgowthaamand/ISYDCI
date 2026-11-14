@@ -219,8 +219,29 @@ export default function CallControls({ phone, name }) {
     cleanupMedia()
     loadLeadCallState()
     const id = setInterval(loadLeadCallState, 3000)
+
+    const targetDigits = String(phone || '').replace(/\D/g, '')
+    const targetTail = targetDigits.slice(-10)
+    const onCallEvent = evt => {
+      const updated = evt?.detail?.call
+      if (!updated?.callId) return
+      const callDigits = String(updated.waId || updated.rawWaId || '').replace(/\D/g, '')
+      if (targetTail && !callDigits.endsWith(targetTail)) return
+      setCalls(prev => {
+        const idx = prev.findIndex(c => c.callId === updated.callId)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = { ...next[idx], ...updated }
+          return next
+        }
+        return [updated, ...prev]
+      })
+    }
+    window.addEventListener('isydci:call_event', onCallEvent)
+
     return () => {
       clearInterval(id)
+      window.removeEventListener('isydci:call_event', onCallEvent)
       cleanupMedia()
     }
   }, [phone])
@@ -594,7 +615,7 @@ export default function CallControls({ phone, name }) {
 
                       {isAttended && recStatus === 'ready' && (
                         <div className="space-y-1.5 pt-1 border-t border-slate-200/70">
-                          <audio controls preload="none" src={streamUrl} className="w-full h-8" />
+                          <audio controls preload="metadata" src={streamUrl} className="w-full h-8" />
                           <div className="flex items-center justify-between text-[10px]">
                             <span className="text-emerald-700 font-semibold">● Recording ready</span>
                             <a

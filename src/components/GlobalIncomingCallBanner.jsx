@@ -135,6 +135,7 @@ export default function GlobalIncomingCallBanner() {
       es.addEventListener('call', evt => {
         try {
           const payload = JSON.parse(evt.data)
+          window.dispatchEvent(new CustomEvent('isydci:call_event', { detail: payload }))
           const c = payload?.call
           if (!c) return
           const isInbound = (c.call_direction || c.direction) === 'inbound'

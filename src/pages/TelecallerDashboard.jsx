@@ -39,7 +39,26 @@ export default function TelecallerDashboard() {
   useEffect(() => {
     load()
     const id = setInterval(load, 15000)
-    return () => clearInterval(id)
+
+    const onCallEvent = evt => {
+      const updated = evt?.detail?.call
+      if (!updated?.callId) return
+      setCalls(prev => {
+        const idx = prev.findIndex(c => c.callId === updated.callId)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = { ...next[idx], ...updated }
+          return next
+        }
+        return [updated, ...prev].slice(0, 30)
+      })
+    }
+    window.addEventListener('isydci:call_event', onCallEvent)
+
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('isydci:call_event', onCallEvent)
+    }
   }, [])
 
   const answeredCalls = calls.filter(c => Boolean(c.attended ?? c.answeredAt))
@@ -156,7 +175,7 @@ export default function TelecallerDashboard() {
                     </div>
                     {isAttended && recStatus === 'ready' && (
                       <div className="space-y-1 pt-1">
-                        <audio controls preload="none" src={streamUrl} className="w-full h-8" />
+                        <audio controls preload="metadata" src={streamUrl} className="w-full h-8" />
                         <div className="flex justify-end">
                           <a
                             href={streamUrl}
