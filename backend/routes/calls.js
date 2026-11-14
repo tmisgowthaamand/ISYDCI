@@ -70,10 +70,12 @@ router.post('/settings', requireAuth(ROLES.SUPER_SUPER_ADMIN), async (req, res) 
   }
 })
 
-// GET /api/calls/active — list ringing/active calls routed to the signed-in telecaller (or all for developer ?scope=all)
+// GET /api/calls/active — list ringing/active calls routed to the signed-in telecaller (or all for admin ?scope=all)
 router.get('/active', async (req, res) => {
   try {
-    const scopeAll = req.query.scope === 'all' && req.admin?.role === ROLES.SUPER_SUPER_ADMIN
+    const scopeAll =
+      req.query.scope === 'all' &&
+      [ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN, ROLES.ADMIN].includes(req.admin?.role)
     const calls = await listActiveCalls({ admin: req.admin, scopeAll })
     res.json({ success: true, calls })
   } catch (err) {
@@ -81,18 +83,20 @@ router.get('/active', async (req, res) => {
   }
 })
 
-// GET /api/calls/events — Server-Sent Events stream filtered by telecaller routing
+// GET /api/calls/events — Server-Sent Events stream filtered by telecaller routing (admins receive live monitor & recording updates)
 router.get('/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
   res.flushHeaders?.()
 
-  const scopeAll = req.query.scope === 'all' && req.admin?.role === ROLES.SUPER_SUPER_ADMIN
+  const scopeAll =
+    req.query.scope === 'all' &&
+    [ROLES.SUPER_SUPER_ADMIN, ROLES.SUPER_ADMIN, ROLES.ADMIN].includes(req.admin?.role)
   res.write(`event: connected\ndata: ${JSON.stringify({ ok: true, telecaller: req.admin?.username || null })}\n\n`)
 
   const onEvent = evt => {
-    if (!scopeAll && evt?.call && !canAdminReceiveCall(evt.call, req.admin)) return
+    if (!scopeAll && evt?.call && !canAdminReceiveCall(evt.call, req.admin, { allowAdminMonitor: true })) return
     res.write(`event: call\ndata: ${JSON.stringify(evt)}\n\n`)
   }
   callEvents.on('call_event', onEvent)
@@ -152,6 +156,7 @@ router.get('/', async (req, res) => {
 // GET /api/calls/lead/:phone — call history + current 72h call permission for a CRM contact
 router.get('/lead/:phone', async (req, res) => {
   try {
+    await assertTelecallerLeadAccess(req.params.phone, req.admin)
     const { telecaller_id: telecallerId, direction } = req.query
     const scopedTelecaller = req.admin?.role === ROLES.TELECALLER ? req.admin.username : telecallerId
     const [calls, permission] = await Promise.all([
@@ -160,7 +165,7 @@ router.get('/lead/:phone', async (req, res) => {
     ])
     res.json({ success: true, calls, permission })
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message })
+    res.status(err.status || 500).json({ success: false, message: err.message })
   }
 })
 
@@ -215,9 +220,20 @@ router.post('/:callId/pre-accept', async (req, res) => {
 // POST /api/calls/:callId/accept
 router.post('/:callId/accept', async (req, res) => {
   try {
+    const existingCall = await col('whatsapp_calls').findOne(
+      { callId: req.params.callId },
+      { projection: { status: 1, attended: 1, telecaller_id: 1 } }
+    )
+    const telecallerId = req.admin?.username || req.admin?.sub || null
+    if (
+      existingCall &&
+      (existingCall.attended || ['accepted', 'connected', 'active'].includes(existingCall.status)) &&
+      existingCall.telecaller_id !== telecallerId
+    ) {
+      return res.status(409).json({ success: false, message: 'Call already accepted by another telecaller' })
+    }
     await assertTelecallerCallAccess(req.params.callId, req.admin)
     const { sdpAnswer } = req.body || {}
-    const telecallerId = req.admin?.username || req.admin?.sub || null
     const result = await acceptCall(req.params.callId, sdpAnswer, { telecallerId })
     res.json({ success: true, ...result })
   } catch (err) {
@@ -294,12 +310,13 @@ router.get('/:callId/recording', async (req, res) => {
 // POST /api/calls/:callId/recording — upload mixed WebRTC call audio recording (.webm)
 router.post('/:callId/recording', async (req, res) => {
   try {
+    await assertTelecallerCallAccess(req.params.callId, req.admin)
     const { audioBase64, mimeType, durationSec } = req.body || {}
     const result = await saveCallRecording(req.params.callId, { audioBase64, mimeType, durationSec })
     res.json({ success: true, ...result })
   } catch (err) {
-    console.warn(`⚠️ [CALL RECORDING UPLOAD 400] ${req.params.callId}: ${err.message}`)
-    res.status(400).json({ success: false, message: err.message })
+    console.warn(`⚠️ [CALL RECORDING UPLOAD ${err.status || 400}] ${req.params.callId}: ${err.message}`)
+    res.status(err.status || 400).json({ success: false, message: err.message })
   }
 })
 

@@ -665,14 +665,51 @@ export async function sendTemplateTo(to, id, params = {}, actor = 'admin') {
   if (footerText) renderedText += `\n\n_${footerText}_`
 
   const provider = await getProvider('marketing')
-  const result = await dispatchRichTemplateMessage(provider, to, {
-    headerFormat: format,
-    headerText,
-    imageUrl: imageLink,
-    bodyText,
-    footerText,
-    buttons: resolvedButtons,
-  })
+  let result
+  if (provider.sendTemplate) {
+    const components = []
+    if (format === 'IMAGE' && imageLink) {
+      components.push({ type: 'header', parameters: [{ type: 'image', image: { link: imageLink } }] })
+    } else if (format === 'TEXT' && countVars(t.header?.text) > 0) {
+      components.push({
+        type: 'header',
+        parameters: [{ type: 'text', text: String(params.header?.text || t.header?.example?.[0] || '-') }],
+      })
+    }
+    if (values.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: values.map(v => ({ type: 'text', text: String(v) })),
+      })
+    }
+    ;(t.buttons || []).forEach((b, i) => {
+      if (String(b.type || '').toUpperCase() === 'URL' && /\{\{\d+\}\}/.test(b.url || '')) {
+        const suffix = String(params.buttons?.[i] ?? b.example ?? '')
+        if (suffix) {
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: String(i),
+            parameters: [{ type: 'text', text: suffix }],
+          })
+        }
+      }
+    })
+    result = await provider.sendTemplate(to, {
+      name: t.name,
+      language: t.language || 'en',
+      components,
+    })
+  } else {
+    result = await dispatchRichTemplateMessage(provider, to, {
+      headerFormat: format,
+      headerText,
+      imageUrl: imageLink,
+      bodyText,
+      footerText,
+      buttons: resolvedButtons,
+    })
+  }
 
   await recordOutbound(
     to,

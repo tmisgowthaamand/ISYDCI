@@ -69,9 +69,22 @@ async function upsertLead(phone, { setOnInsert = {}, set = {}, status, source })
   const now = new Date()
   const existing = await LEADS().findOne({ phone })
   const nextStatus = status ? forwardStatus(existing?.status, status) : existing?.status || LEAD_STATUS.NEW
+  const cleanSet = {}
+  for (const [k, v] of Object.entries(set)) {
+    if (v !== undefined) cleanSet[k] = v
+  }
+  const baseSetOnInsert = {
+    phone,
+    source: source || 'whatsapp',
+    createdAt: now,
+    firstContactAt: now,
+    notes: [],
+    ...(cleanSet.tags === undefined && setOnInsert.tags === undefined ? { tags: [] } : {}),
+    ...setOnInsert,
+  }
   const update = {
-    $set: { ...set, status: nextStatus, updatedAt: now, phoneRev: reversePhone(phone) },
-    $setOnInsert: { phone, source: source || 'whatsapp', createdAt: now, firstContactAt: now, notes: [], tags: [], ...setOnInsert },
+    $set: { ...cleanSet, status: nextStatus, updatedAt: now, phoneRev: reversePhone(phone) },
+    $setOnInsert: baseSetOnInsert,
   }
   if (!existing && source) update.$setOnInsert.source = source
   if (!existing && !set.assignedTo && !setOnInsert.assignedTo) {
@@ -82,6 +95,9 @@ async function upsertLead(phone, { setOnInsert = {}, set = {}, status, source })
     update.$push = { statusHistory: { from: existing.status, to: nextStatus, at: now } }
   } else if (!existing) {
     update.$setOnInsert.statusHistory = [{ from: null, to: nextStatus, at: now }]
+  }
+  for (const k of Object.keys(update.$setOnInsert)) {
+    if (k in update.$set) delete update.$setOnInsert[k]
   }
   const res = await LEADS().findOneAndUpdate({ phone }, update, { upsert: true, returnDocument: 'after' })
   return strip(res)
@@ -103,8 +119,7 @@ export async function upsertLeadFromInbound(msg, value, member) {
     set.district = member.district || ''
     set.state = member.state || ''
     set.cardFullUrl = member.cardFullUrl || ''
-    set.status = LEAD_STATUS.REGISTERED
-    set.statusLabel = 'Registered'
+    set.statusLabel = member.cardFullUrl ? 'Card Sent 🪪' : 'Registered'
     set.tags = ['verified', 'athlete']
   }
   let source = 'whatsapp'
@@ -121,7 +136,9 @@ export async function upsertLeadFromInbound(msg, value, member) {
       capturedAt: new Date(),
     }
   }
-  const status = member ? LEAD_STATUS.REGISTERED : LEAD_STATUS.CONTACTED
+  const status = member
+    ? (member.cardFullUrl ? LEAD_STATUS.CARD_ISSUED : LEAD_STATUS.REGISTERED)
+    : LEAD_STATUS.CONTACTED
   const lead = await upsertLead(phone, { set, setOnInsert: { name: member?.name || profileName }, status, source })
 
   await MESSAGES().insertOne({
@@ -196,8 +213,16 @@ export async function recordOutbound(recipient, payload, waMessageId, provider =
   await LEADS().updateOne({ phone }, { $set: { lastMessageAt: new Date(), lastOutboundAt: new Date() } })
 }
 
+const MSG_STATUS_RANK = { sent: 1, delivered: 2, read: 3 }
+
 export async function updateMessageStatus(waMessageId, status, errors) {
   if (!waMessageId) return
+  if (status !== 'failed' && MSG_STATUS_RANK[status]) {
+    const existing = await MESSAGES().findOne({ waMessageId }, { projection: { status: 1 } })
+    if (existing && (MSG_STATUS_RANK[existing.status] || 0) > MSG_STATUS_RANK[status]) {
+      return
+    }
+  }
   const set = { status, statusAt: new Date() }
   if (errors?.length) set.error = `${errors[0].code} ${errors[0].title || ''}`.trim()
   await MESSAGES().updateOne({ waMessageId }, { $set: set })
@@ -338,7 +363,11 @@ export async function listLeads({ q = '', status = '', source = '', assignedTo =
 export async function deleteLead(rawPhone) {
   const p = leadPhone(rawPhone)
   statsCache = { at: 0, value: null }
-  await MESSAGES().deleteMany({ leadPhone: p })
+  await Promise.all([
+    MESSAGES().deleteMany({ leadPhone: p }),
+    col('call_permissions').deleteMany({ waId: p }).catch(() => {}),
+    col('whatsapp_calls').deleteMany({ waId: p }).catch(() => {}),
+  ])
   const res = await LEADS().deleteOne({ phone: p })
   return res.deletedCount > 0
 }
@@ -379,14 +408,19 @@ export async function syncMembersToLeads() {
       const rawPhone = m.contact || m.phone || m.phoneKey
       const phone = leadPhone(rawPhone)
       if (!phone) continue
+      const existing = await LEADS().findOne({ phone }, { projection: { status: 1 } })
+      const targetStatus = forwardStatus(
+        existing?.status,
+        m.cardFullUrl ? LEAD_STATUS.CARD_ISSUED : LEAD_STATUS.REGISTERED
+      )
       const set = {
         name: m.name,
         whatsappName: m.name,
         memberId: m.memberId,
         district: m.district || '',
         state: m.state || '',
-        status: LEAD_STATUS.REGISTERED,
-        statusLabel: 'Registered',
+        status: targetStatus,
+        statusLabel: targetStatus === LEAD_STATUS.CARD_ISSUED ? 'Card Sent 🪪' : 'Registered',
         cardFullUrl: m.cardFullUrl || '',
         tags: ['verified', 'athlete'],
         updatedAt: now,

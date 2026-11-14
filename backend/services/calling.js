@@ -794,30 +794,39 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
   // 1. Handle call events (connect, terminate, recording, status updates, call_permission_reply)
   for (const call of value.calls || []) {
     const callId = call.id || call.call_id
-    const rawFrom = call.from || call.to || ''
-    const waId = leadPhone(rawFrom)
     const event = String(call.event || '').toLowerCase()
     const now = new Date()
 
     if (event === 'call_permission_reply' || call.call_permission_reply) {
+      const rawReplyFrom = call.from || call.to || ''
+      const replyWaId = leadPhone(rawReplyFrom)
       const reply = call.call_permission_reply?.response || call.response || call.status
-      await recordCallPermissionReply(waId, reply, call, now)
+      await recordCallPermissionReply(replyWaId, reply, call, now)
       continue
     }
 
     if (!callId) continue
 
+    const existing = await CALLS().findOne({ callId })
+    const isOutboundCall =
+      call.direction === 'BUSINESS_INITIATED' ||
+      existing?.direction === 'outbound' ||
+      existing?.call_direction === 'outbound'
+    const rawFrom = isOutboundCall
+      ? (call.to || existing?.waId || call.from || '')
+      : (call.from || existing?.waId || call.to || '')
+    const waId = leadPhone(rawFrom) || existing?.waId || ''
+
     const member = waId ? await findMemberByPhone(waId).catch(() => null) : null
     const lead = waId ? await LEADS().findOne({ phone: waId }).catch(() => null) : null
 
-    if (event === 'recording' || event === 'call_recording_available' || Boolean(call.call_recording)) {
+    if (event === 'recording' || event === 'call_recording_available' || (!event && Boolean(call.call_recording))) {
       const { mediaId, directUrl } = extractRecordingMedia(call, value)
       await recordEvent(
         'whatsapp_call_recording_webhook',
         `Recording webhook (${event || 'call_recording'}) for ${callId}${mediaId ? ` (media ${mediaId})` : ''}`,
         call
       ).catch(() => {})
-      const existing = await CALLS().findOne({ callId })
       if ((mediaId || directUrl) && existing?.attended) {
         const task = ingestCallRecording(callId, mediaId, { fetchImpl, directUrl })
         recordingTasks.push(task)
@@ -828,11 +837,10 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
     }
 
     if (event === 'connect') {
-      const direction = call.direction === 'BUSINESS_INITIATED' ? 'outbound' : 'inbound'
+      const direction = isOutboundCall ? 'outbound' : 'inbound'
       const sdp = call.session?.sdp || null
       const sdpType = call.session?.sdp_type || 'offer'
 
-      const existing = await CALLS().findOne({ callId })
       if (direction === 'outbound' && existing && sdpType === 'answer') {
         await CALLS().updateOne(
           { callId },
@@ -938,7 +946,6 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
         emitCallEvent('incoming_call', { call: doc })
       }
     } else if (event === 'terminate' || ['completed', 'missed', 'failed', 'rejected', 'no_answer'].includes(event)) {
-      const existing = await CALLS().findOne({ callId })
       const isBusyRejected = existing?.endReason === 'telecaller_busy'
       const endReason = isBusyRejected ? 'telecaller_busy' : (call.end_reason || call.reason || event)
       const durationSec =
@@ -1047,7 +1054,7 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
                 { waId },
                 {
                   $set: {
-                    status: 'rejected',
+                    status: 'revoked',
                     isPermanent: false,
                     permissionExpiresAt: null,
                     unansweredWarning: true,
@@ -1122,8 +1129,11 @@ export async function handleCallsWebhook(value, { awaitRecording = false, fetchI
 
 // ---------------------------------------------------------------- CRM Query Helpers
 
-export function canAdminReceiveCall(call, admin, { includeUnassigned = true } = {}) {
+export function canAdminReceiveCall(call, admin, { includeUnassigned = true, allowAdminMonitor = false } = {}) {
   if (!call) return false
+  if (allowAdminMonitor && ['super_super_admin', 'super_admin', 'admin'].includes(admin?.role)) {
+    return true
+  }
   const assigned = String(call.telecaller_id || '').trim().toLowerCase()
   if (!assigned) return includeUnassigned
   const username = String(admin?.username || '').trim().toLowerCase()

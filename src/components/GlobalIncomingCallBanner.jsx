@@ -134,6 +134,11 @@ export default function GlobalIncomingCallBanner() {
   useEffect(() => {
     refreshActive()
     const token = getAuthToken()
+    let currentUsername = ''
+    try {
+      const saved = JSON.parse(localStorage.getItem('isydci_admin_auth') || '{}')
+      currentUsername = String(saved?.user?.username || saved?.username || '').trim().toLowerCase()
+    } catch (_) {}
     let es = null
     if (token && typeof EventSource !== 'undefined') {
       es = new EventSource(`${API_BASE_URL}/api/calls/events?token=${encodeURIComponent(token)}`)
@@ -145,6 +150,8 @@ export default function GlobalIncomingCallBanner() {
           if (!c) return
           const isInbound = (c.call_direction || c.direction) === 'inbound'
           if (!isInbound) return
+          const assigned = String(c.telecaller_id || '').trim().toLowerCase()
+          if (assigned && currentUsername && assigned !== currentUsername) return
           if (['ringing', 'pre_accepted', 'accepted', 'active'].includes(c.status)) {
             setIncomingCall(prev => {
               if (prev && prev.callId !== c.callId && ['accepted', 'active', 'pre_accepted'].includes(prev.status)) {

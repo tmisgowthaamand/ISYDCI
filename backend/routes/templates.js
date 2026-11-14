@@ -16,7 +16,7 @@ import {
   validateTemplate,
   setTemplateStatus,
 } from '../services/templates.js'
-import { listLeads } from '../services/leads.js'
+import { listLeads, leadPhone } from '../services/leads.js'
 
 const router = Router()
 router.use(requireAuth()) // both roles
@@ -101,15 +101,20 @@ router.post('/:id/send', async (req, res) => {
   try {
     const { to, params = {}, segment, limit } = req.body || {}
     if (to) {
-      const r = await sendTemplateTo(String(to).replace(/\D/g, ''), req.params.id, params, req.admin.username)
+      const r = await sendTemplateTo(leadPhone(to), req.params.id, params, req.admin.username)
       return res.json({ success: true, sent: 1, messageId: r.messageId })
     }
     if (segment) {
       const cap = Math.min(500, parseInt(limit) || 100)
       const { leads } = await listLeads({ ...segment, page: 1, limit: cap })
       let sent = 0
+      let skippedOptOut = 0
       const failed = []
       for (const lead of leads) {
+        if (lead.optedOut) {
+          skippedOptOut++
+          continue
+        }
         try {
           await sendTemplateTo(lead.phone, req.params.id, params, req.admin.username)
           sent++
@@ -117,7 +122,7 @@ router.post('/:id/send', async (req, res) => {
           failed.push({ phone: lead.phone, error: err.message })
         }
       }
-      return res.json({ success: true, sent, failed, note: 'Meta paces business-initiated messages by your daily messaging tier; large segments should be sent in batches.' })
+      return res.json({ success: true, sent, skippedOptOut, failed, note: 'Meta paces business-initiated messages by your daily messaging tier; large segments should be sent in batches.' })
     }
     res.status(400).json({ success: false, message: 'Provide "to" or a "segment"' })
   } catch (error) {

@@ -151,6 +151,9 @@ async function syncToLeads(member) {
   const phone = digits.length === 10 ? `91${digits}` : digits
   if (!phone) return
   const now = new Date()
+  const existing = await col('leads').findOne({ phone }, { projection: { status: 1 } })
+  const nextStatus =
+    existing?.status === 'card_issued' || Boolean(member.cardFullUrl) ? 'card_issued' : 'registered'
   await col('leads').updateOne(
     { phone },
     {
@@ -160,8 +163,8 @@ async function syncToLeads(member) {
         memberId: member.memberId,
         district: member.district || '',
         state: member.state || '',
-        status: 'registered',
-        statusLabel: 'Registered',
+        status: nextStatus,
+        statusLabel: nextStatus === 'card_issued' ? 'Card Sent 🪪' : 'Registered',
         cardFullUrl: member.cardFullUrl || '',
         tags: ['verified', 'athlete'],
         updatedAt: now,

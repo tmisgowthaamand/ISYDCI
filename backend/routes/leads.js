@@ -3,11 +3,12 @@ import { requireAuth, ROLES } from '../services/auth.js'
 import {
   listLeads, leadStats, getLead, getMessages, markRead, updateLead, addNote, createManualLead,
   exportLeadsCsv, saveWebDraft, upsertLeadFromLeadAd, recordOutbound, LEAD_STATUS_LABEL, LEAD_SOURCES, sweepIncomplete,
-  deleteLead,
+  deleteLead, leadPhone,
 } from '../services/leads.js'
 import { getProvider } from '../services/providers.js'
 import { sendTemplateTo, dispatchRichTemplateMessage } from '../services/templates.js'
 import { recordEvent } from '../services/audit.js'
+import { verifyMetaSignature } from '../services/calling.js'
 
 const router = Router()
 
@@ -33,6 +34,10 @@ router.get('/facebook-webhook', (req, res) => {
 })
 
 router.post('/facebook-webhook', async (req, res) => {
+  const sigCheck = verifyMetaSignature(req.rawBody, req.headers['x-hub-signature-256'])
+  if (!sigCheck.valid) {
+    return res.status(401).json({ error: 'Invalid signature' })
+  }
   res.status(200).send('EVENT_RECEIVED')
   try {
     const pageToken = process.env.FB_PAGE_ACCESS_TOKEN || process.env.WHATSAPP_TOKEN
@@ -186,7 +191,7 @@ router.post('/:phone/reply', requireAuth(), async (req, res) => {
     const buttons = Array.isArray(req.body?.buttons) ? req.body.buttons : []
     const templateName = req.body?.templateName || null
     if (!text && !imageUrl) return res.status(400).json({ success: false, message: 'Message text or image is required' })
-    const to = String(req.params.phone).replace(/\D/g, '')
+    const to = leadPhone(req.params.phone)
     const provider = await getProvider('transactional')
     let result
     if (buttons.length > 0 || (imageUrl && /^https?:\/\//i.test(imageUrl))) {
@@ -216,7 +221,7 @@ router.post('/:phone/send-template', requireAuth(), async (req, res) => {
     const access = await ensureTelecallerLeadAccess(req, req.params.phone)
     if (access === 'not_found') return res.status(404).json({ success: false, message: 'Lead not found' })
     if (!access) return res.status(403).json({ success: false, message: 'This lead is not assigned to you' })
-    const to = String(req.params.phone).replace(/\D/g, '')
+    const to = leadPhone(req.params.phone)
     const result = await sendTemplateTo(to, req.body?.templateId, req.body?.params || {}, req.admin.username)
     res.json({ success: true, messageId: result.messageId })
   } catch (error) {

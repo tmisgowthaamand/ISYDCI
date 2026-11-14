@@ -6,10 +6,11 @@
 
 import express from 'express'
 import { findMemberByPhone, saveMember, getMemberById } from '../db/db.js'
+import { col } from '../db/mongo.js'
 import { generateAndUploadCard, SITE_URL } from '../services/cardRenderer.js'
 import { registerFromFlow, parseDob, formatPhoneDisplay } from './flowEndpoint.js'
 import { logWhatsAppInbound, logWhatsAppOutbound } from '../utils/liveLogger.js'
-import { upsertLeadFromInbound, recordOutbound, markCardIssued, updateMessageStatus } from '../services/leads.js'
+import { upsertLeadFromInbound, recordOutbound, markCardIssued, updateMessageStatus, leadPhone } from '../services/leads.js'
 import { recordEvent } from '../services/audit.js'
 import { verifyMetaSignature, handleCallsWebhook, recordCallPermissionReply, rollbackFailedPermissionRequest } from '../services/calling.js'
 
@@ -389,6 +390,13 @@ router.post('/', async (req, res) => {
         console.log(`↩️  [WHATSAPP DUPLICATE ${time}] message ${msg.id} already handled — skipped`)
         continue
       }
+      if (msg.id) {
+        const persistedDup = await col('messages').findOne({ waMessageId: msg.id }, { projection: { _id: 1 } }).catch(() => null)
+        if (persistedDup) {
+          console.log(`↩️  [WHATSAPP DB DUPLICATE ${time}] message ${msg.id} already in DB — skipped`)
+          continue
+        }
+      }
       const sender = msg.from
       const senderName = value.contacts?.find(c => c.wa_id === sender)?.profile?.name || ''
       const msgType = msg.type
@@ -455,7 +463,20 @@ router.post('/', async (req, res) => {
         const lower = text.toLowerCase()
         console.log(`   💬 Text:       "${text}"`)
 
-        if (/\b(register|registration|join|sign ?up|new member)\b/.test(lower)) {
+        if (/^(stop|unsubscribe)$/i.test(text)) {
+          await col('leads').updateOne(
+            { phone: leadPhone(sender) },
+            { $set: { optedOut: true, optedOutAt: new Date(), updatedAt: new Date() } }
+          ).catch(() => {})
+          await sendText(sender, '🔕 You have been unsubscribed from promotional updates. Reply *START* anytime to re-subscribe.')
+        } else if (/^start$/i.test(text)) {
+          await col('leads').updateOne(
+            { phone: leadPhone(sender) },
+            { $set: { optedOut: false, optedOutAt: null, updatedAt: new Date() } }
+          ).catch(() => {})
+          if (member) await sendWelcomeBack(sender, member)
+          else await sendMainMenu(sender, null)
+        } else if (/\b(register|registration|join|sign ?up|new member)\b/.test(lower)) {
           if (member) await sendAlreadyRegistered(sender, member)
           else await sendRegistrationFlow(sender)
         } else if (/\b(card|id card|membership|download|my id)\b/.test(lower)) {
