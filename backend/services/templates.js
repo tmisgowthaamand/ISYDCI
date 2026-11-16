@@ -9,6 +9,14 @@ import { uploadToCloudinary } from '../config/cloudinary.js'
 const TEMPLATES = () => col('templates')
 const GRAPH = 'https://graph.facebook.com/v21.0'
 
+function idFilter(id) {
+  const s = String(id || '').trim()
+  if (ObjectId.isValid(s) && /^[0-9a-fA-F]{24}$/.test(s)) {
+    return { $or: [{ _id: s }, { _id: new ObjectId(s) }] }
+  }
+  return { _id: s }
+}
+
 // Limits from Meta's template components reference
 export const META_LIMITS = {
   name: { max: 512, pattern: '^[a-z0-9_]+$' },
@@ -234,7 +242,7 @@ export async function listTemplates({ status = '', q = '' } = {}) {
 }
 
 export async function getTemplate(id) {
-  const doc = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  const doc = await TEMPLATES().findOne(idFilter(id))
   return strip(doc)
 }
 
@@ -262,7 +270,7 @@ export async function createTemplate(def, actor) {
 }
 
 export async function updateTemplate(id, def, actor) {
-  const existing = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  const existing = await TEMPLATES().findOne(idFilter(id))
   if (!existing) throw new Error('Template not found')
   const mergedHeader = await ensureHeaderMediaUrl({ ...(existing.header || {}), ...(def.header || {}) }, def.name || existing.name)
   const merged = {
@@ -292,7 +300,7 @@ export async function updateTemplate(id, def, actor) {
 }
 
 export async function deleteTemplate(id, { alsoMeta = true } = {}) {
-  const existing = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  const existing = await TEMPLATES().findOne(idFilter(id))
   if (!existing) throw new Error('Template not found')
   if (alsoMeta && existing.metaId) {
     const creds = metaCredentials()
@@ -308,7 +316,7 @@ export async function deleteTemplate(id, { alsoMeta = true } = {}) {
 
 /** Submit or update a template on Meta for review (or direct approval in dev simulator). */
 export async function submitTemplate(id, actor, { directApproval = false } = {}) {
-  const existing = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  const existing = await TEMPLATES().findOne(idFilter(id))
   if (!existing) throw new Error('Template not found')
   const errors = validateTemplate(existing)
   if (errors.length) throw new Error('Fix these first: ' + errors.join('; '))
@@ -418,14 +426,14 @@ export async function setTemplateStatus(id, { status, reason = '', actor = 'admi
     update.rejectedReason = ''
     update.approvedAt = new Date().toISOString()
   }
-  await TEMPLATES().updateOne({ _id: new ObjectId(id) }, { $set: update })
-  const updated = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  await TEMPLATES().updateOne(idFilter(id), { $set: update })
+  const updated = await TEMPLATES().findOne(idFilter(id))
   return strip(updated)
 }
 
 /** Pull the current status AND components (header, body, footer, buttons) of one template from Meta. */
 export async function syncTemplate(id) {
-  const existing = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  const existing = await TEMPLATES().findOne(idFilter(id))
   if (!existing) throw new Error('Template not found')
   if (!existing.metaId) return strip(existing)
   const creds = metaCredentials()
@@ -632,7 +640,7 @@ export async function dispatchRichTemplateMessage(provider, to, { headerFormat =
  * params: { header: { link } | { text }, body: ['v1','v2'], buttons: { 0: 'urlSuffix' } }
  */
 export async function sendTemplateTo(to, id, params = {}, actor = 'admin') {
-  const t = await TEMPLATES().findOne({ _id: new ObjectId(id) })
+  const t = await TEMPLATES().findOne(idFilter(id))
   if (!t) throw new Error('Template not found')
   if (t.status !== 'APPROVED') throw new Error(`Template is ${STATUS_LABEL[t.status] || t.status} — only Approved templates can be sent`)
   const format = String(t.header?.format || 'NONE').toUpperCase()
