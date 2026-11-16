@@ -297,8 +297,39 @@ export default function AdminInbox() {
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('reply') // reply | template | notes
   const [copied, setCopied] = useState(false)
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const chatScrollRef = useRef(null)
   const limit = 30
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Compute live 24h WhatsApp Customer Service Window from the lead's last inbound WhatsApp message
+  const lastInboundMs = (() => {
+    if (selected?.lastInboundAt) {
+      const t = new Date(selected.lastInboundAt).getTime()
+      if (!Number.isNaN(t)) return t
+    }
+    const inboundMsg = [...messages]
+      .reverse()
+      .find(m => m.direction === 'in' && m.type !== 'web_form' && m.channel !== 'whatsapp_call')
+    if (inboundMsg?.createdAt) {
+      const t = new Date(inboundMsg.createdAt).getTime()
+      if (!Number.isNaN(t)) return t
+    }
+    return 0
+  })()
+  const windowRemainingMs = lastInboundMs ? Math.max(0, lastInboundMs + 24 * 60 * 60 * 1000 - nowMs) : 0
+  const is24hWindowOpen = windowRemainingMs > 0
+  const windowCountdown = (() => {
+    const totalSec = Math.floor(windowRemainingMs / 1000)
+    const hrs = Math.floor(totalSec / 3600)
+    const mins = Math.floor((totalSec % 3600) / 60)
+    const secs = totalSec % 60
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  })()
 
   const scrollToBottom = (smooth = false) => {
     if (chatScrollRef.current) {
@@ -1201,9 +1232,13 @@ export default function AdminInbox() {
                   >
                     <span>💬 Direct Message</span>
                     <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
-                      activeTab === 'reply' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+                      activeTab === 'reply'
+                        ? 'bg-white/20 text-white'
+                        : is24hWindowOpen
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-amber-100 text-amber-700'
                     }`}>
-                      Free 24h
+                      {is24hWindowOpen ? 'Free 24h' : '24h Closed'}
                     </span>
                   </button>
 
@@ -1236,10 +1271,20 @@ export default function AdminInbox() {
                     <span>📝 Notes ({selected.notes?.length || 0})</span>
                   </button>
 
-                  <span className="ml-auto text-[11px] text-blue-700 font-bold hidden sm:inline-flex items-center gap-1.5 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                    <span className="w-2 h-2 rounded-full bg-[#007AFF] animate-pulse"></span>
-                    <span>24h Free Customer Service Window Active</span>
-                  </span>
+                  {is24hWindowOpen ? (
+                    <span className="ml-auto text-[11px] text-blue-700 font-bold hidden sm:inline-flex items-center gap-1.5 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 tabular-nums">
+                      <span className="w-2 h-2 rounded-full bg-[#007AFF] animate-pulse"></span>
+                      <span>24h Free Window • {windowCountdown} left</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="ml-auto text-[11px] text-amber-700 font-bold hidden sm:inline-flex items-center gap-1.5 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200"
+                      title={lastInboundMs ? '24h customer service window expired — send an approved template' : 'No inbound WhatsApp message from this contact yet'}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <span>24h Window Closed • Use Template</span>
+                    </span>
+                  )}
                 </div>
 
                 {/* TAB 1: Direct Reply (Apple Pill Input with Circular Up-Arrow Send Button) */}
@@ -1358,7 +1403,15 @@ export default function AdminInbox() {
                     </div>
 
                     <div className="flex items-center justify-between text-[10px] text-slate-400 px-2 select-none">
-                      <span className="text-blue-700 font-semibold">✓ Free 24h customer window • Instant WhatsApp delivery</span>
+                      {is24hWindowOpen ? (
+                        <span className="text-blue-700 font-semibold tabular-nums">
+                          ✓ Free 24h customer window ({windowCountdown} left) • Instant WhatsApp delivery
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold">
+                          ⚠️ 24h window closed — free-form replies may fail (131047). Switch to WhatsApp Template.
+                        </span>
+                      )}
                       <span>Press Enter to send</span>
                     </div>
                   </form>
