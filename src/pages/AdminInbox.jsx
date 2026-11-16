@@ -20,15 +20,15 @@ const getDayDividerLabel = d => {
   return dateObj.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-/** Formats a Meta template into a personalized direct WhatsApp text message (for free 24h window replies) */
-export const renderTemplateAsText = (tpl, lead, customParamsStr = '', { bodyOnly = false } = {}) => {
-  if (!tpl) return ''
-  let text = ''
-  if (!bodyOnly && tpl.header?.text) text += `*${tpl.header.text}*\n\n`
+/** Resolves ordered {{1}}, {{2}}... body variables for both Direct Replies and Official Meta Templates */
+export const resolveTemplateVars = (tpl, lead, customParamsStr = '') => {
+  if (!tpl) return []
+  const rawBody = String(tpl.body?.text || '')
+  const matches = [...rawBody.matchAll(/\{\{(\d+)\}\}/g)]
+  const maxVar = matches.reduce((mx, m) => Math.max(mx, parseInt(m[1], 10) || 0), 0)
+  if (maxVar === 0) return []
 
-  let body = tpl.body?.text || ''
   const customValues = customParamsStr ? customParamsStr.split('|').map(s => s.trim()) : []
-
   const name = lead?.name || lead?.whatsappName || 'Athlete'
   const district = lead?.district || 'CHENNAI'
   const memberId = lead?.memberId || 'ISYDCI-PENDING'
@@ -39,11 +39,26 @@ export const renderTemplateAsText = (tpl, lead, customParamsStr = '', { bodyOnly
     defaultVars = [district, name, memberId, state]
   }
 
-  body = body.replace(/\{\{(\d+)\}\}/g, (match, num) => {
-    const idx = parseInt(num, 10) - 1
+  return Array.from({ length: maxVar }, (_, idx) => {
     if (customValues[idx] !== undefined && customValues[idx] !== '') return customValues[idx]
     if (defaultVars[idx] !== undefined && defaultVars[idx] !== '') return defaultVars[idx]
-    return tpl.body?.examples?.[idx] || match
+    return tpl.body?.examples?.[idx] || '-'
+  })
+}
+
+/** Formats a Meta template into a personalized direct WhatsApp text message (for free 24h window replies) */
+export const renderTemplateAsText = (tpl, lead, customParamsStr = '', { bodyOnly = false } = {}) => {
+  if (!tpl) return ''
+  let text = ''
+  if (!bodyOnly && tpl.header?.text) text += `*${tpl.header.text}*\n\n`
+
+  let body = tpl.body?.text || ''
+  const resolvedVars = resolveTemplateVars(tpl, lead, customParamsStr)
+  const memberId = lead?.memberId || 'ISYDCI-PENDING'
+
+  body = body.replace(/\{\{(\d+)\}\}/g, (match, num) => {
+    const idx = parseInt(num, 10) - 1
+    return resolvedVars[idx] !== undefined ? resolvedVars[idx] : match
   })
 
   text += body
@@ -763,13 +778,20 @@ export default function AdminInbox() {
     setError('')
     try {
       const targetTpl = templates.find(t => t.id === tplId)
-      const body = tplParams.split('|').map(s => s.trim()).filter(Boolean)
+      const body = resolveTemplateVars(targetTpl, selected, tplParams)
       const header = targetTpl?.header?.format === 'IMAGE' && targetTpl?.header?.mediaUrl ? { link: targetTpl.header.mediaUrl } : undefined
+      const buttons = {}
+      const memberId = selected?.memberId || 'ISYDCI-PENDING'
+      ;(targetTpl?.buttons || []).forEach((b, i) => {
+        if (String(b.type || '').toUpperCase() === 'URL' && /\{\{\d+\}\}/.test(b.url || '')) {
+          buttons[i] = memberId
+        }
+      })
       await apiJson(`/api/leads/${selected.phone}/send-template`, {
         method: 'POST',
-        body: JSON.stringify({ templateId: tplId, params: { body, header } }),
+        body: JSON.stringify({ templateId: tplId, params: { body, header, buttons } }),
       })
-      setInfo('Meta template (Image + Text + Buttons) dispatched.')
+      setInfo(`Official Meta template "${targetTpl?.name || ''}" dispatched (Meta-billed re-engagement).`)
       setTplId('')
       setTplParams('')
       openLead(selected.phone)
@@ -1601,6 +1623,11 @@ export default function AdminInbox() {
                           key={tp.id}
                           type="button"
                           onClick={() => {
+                            if (!is24hWindowOpen) {
+                              setTplId(tp.id)
+                              setActiveTab('template')
+                              return
+                            }
                             const btns = resolveTemplateButtons(tp, selected)
                             const hasBtns = btns.some(b => ['URL', 'QUICK_REPLY'].includes(String(b.type || '').toUpperCase()))
                             setReply(renderTemplateAsText(tp, selected, '', { bodyOnly: hasBtns }))
@@ -1954,16 +1981,35 @@ export default function AdminInbox() {
                         className="px-3 py-2 rounded-xl border border-slate-200 text-xs flex-1 min-w-[180px] bg-white focus:outline-none focus:border-[#007AFF] shadow-2xs"
                       />
 
-                      {/* Primary Free Option: Send as Direct Reply */}
+                      {/* Official Meta Template (Primary when 24h window is closed) */}
+                      <button
+                        type="button"
+                        onClick={sendTemplate}
+                        disabled={!tplId || sending}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shrink-0 inline-flex items-center gap-1.5 ${
+                          !is24hWindowOpen
+                            ? 'bg-[#007AFF] hover:bg-blue-600 text-white shadow-xs'
+                            : 'border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100'
+                        }`}
+                        title="Sends official Meta HSM template payload (works anytime, including after 24h; billed by Meta)"
+                      >
+                        <span>📄 Send Official Meta Template {!is24hWindowOpen ? '(After 24h • Meta Billed)' : ''}</span>
+                      </button>
+
+                      {/* Free 24h Direct Reply Option (Only enabled inside 24h window) */}
                       <button
                         type="button"
                         onClick={() => {
                           const targetTpl = templates.find(t => t.id === tplId)
                           sendTemplateAsDirectReply(targetTpl, tplParams)
                         }}
-                        disabled={!tplId || sending}
-                        className="px-4 py-2 rounded-xl bg-[#007AFF] hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-xs disabled:opacity-40 cursor-pointer shrink-0 inline-flex items-center gap-1.5"
-                        title="Delivers template message as a free 24h customer service message (No Meta credit card needed!)"
+                        disabled={!tplId || sending || !is24hWindowOpen}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shrink-0 inline-flex items-center gap-1.5 ${
+                          is24hWindowOpen
+                            ? 'bg-[#007AFF] hover:bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                        }`}
+                        title={is24hWindowOpen ? 'Delivers template message as a free 24h customer service message (₹0)' : 'Disabled: 24h window is closed (free direct messages fail with 131047)'}
                       >
                         <span>⚡ Send as Free Direct Message (₹0)</span>
                       </button>
@@ -1983,21 +2029,11 @@ export default function AdminInbox() {
                             setActiveTab('reply')
                           }
                         }}
-                        disabled={!tplId}
+                        disabled={!tplId || !is24hWindowOpen}
                         className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shrink-0"
+                        title={is24hWindowOpen ? 'Copy into Direct Message box' : 'Disabled: 24h window is closed'}
                       >
                         <span>✏️ Edit in Message Box</span>
-                      </button>
-
-                      {/* Official Meta Template (Requires Card) */}
-                      <button
-                        type="button"
-                        onClick={sendTemplate}
-                        disabled={!tplId || sending}
-                        className="px-3 py-2 rounded-xl border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer shrink-0"
-                        title="Sends official Meta template payload (Requires payment card in Meta Business Suite)"
-                      >
-                        <span>📄 Official Meta Template</span>
                       </button>
                     </div>
 
@@ -2006,7 +2042,11 @@ export default function AdminInbox() {
                       <div className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-800 space-y-2 shadow-2xs">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                           <span>Live Message Preview (Personalized for {selected.name || selected.phone}):</span>
-                          <span className="text-blue-600 font-bold">Ready for Free 24h Delivery (1 Combined Message)</span>
+                          <span className={!is24hWindowOpen ? 'text-amber-700 font-bold' : 'text-blue-600 font-bold'}>
+                            {is24hWindowOpen
+                              ? '24h Window Open • Free or Official Template'
+                              : '24h Window Closed • Sends via Official Meta Template (Billed)'}
+                          </span>
                         </div>
                         {(() => {
                           const previewTpl = templates.find(t => t.id === tplId)
@@ -2041,10 +2081,22 @@ export default function AdminInbox() {
                       </div>
                     )}
 
-                    <div className="flex items-start gap-1.5 text-[11px] text-blue-900 bg-blue-50/80 border border-blue-200/80 p-2.5 rounded-xl">
-                      <span className="text-xs shrink-0">💡</span>
+                    <div className={`flex items-start gap-1.5 text-[11px] p-2.5 rounded-xl border ${
+                      !is24hWindowOpen
+                        ? 'text-amber-900 bg-amber-50/90 border-amber-200'
+                        : 'text-blue-900 bg-blue-50/80 border-blue-200/80'
+                    }`}>
+                      <span className="text-xs shrink-0">{!is24hWindowOpen ? '💳' : '💡'}</span>
                       <span>
-                        <strong>Two ways to send:</strong> Click <strong>"⚡ Send as Free Direct Message (₹0)"</strong> to deliver immediately within the 24h window with NO credit card needed. Use <strong>"Official Meta Template"</strong> only if you have configured a payment method in Meta Business Suite.
+                        {!is24hWindowOpen ? (
+                          <>
+                            <strong>24h Window Closed:</strong> Free Direct Messages are blocked by Meta (<code>131047</code>). Click <strong>"📄 Send Official Meta Template (After 24h • Meta Billed)"</strong> to deliver immediately using your Meta Business payment method.
+                          </>
+                        ) : (
+                          <>
+                            <strong>Two ways to send:</strong> Click <strong>"⚡ Send as Free Direct Message (₹0)"</strong> to deliver immediately within the 24h window with NO charge, or use <strong>"📄 Send Official Meta Template"</strong> anytime.
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
