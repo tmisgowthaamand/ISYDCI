@@ -13,7 +13,7 @@ git fetch --all --prune
 git reset --hard origin/main
 
 echo "── install"
-npm ci --omit=dev --no-audit --no-fund
+npm ci --no-audit --no-fund
 npm --prefix backend ci --omit=dev --no-audit --no-fund
 
 echo "── build frontend"

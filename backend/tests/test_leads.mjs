@@ -20,7 +20,9 @@ const ok = (cond, msg) => {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const login = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: env.ADMIN_USERNAME, password: env.ADMIN_PASSWORD }) }).then(r => r.json())
+const devLogin = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: env.SUPER_SUPER_ADMIN_USERNAME, password: env.SUPER_SUPER_ADMIN_PASSWORD }) }).then(r => r.json())
 const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${login.token}` }
+const devH = { 'Content-Type': 'application/json', Authorization: `Bearer ${devLogin.token}` }
 const j = async (p, opts = {}) => {
   const res = await fetch(BASE + p, { ...opts, headers: { ...H, ...(opts.headers || {}) } })
   return { status: res.status, body: await res.json().catch(() => ({})) }
@@ -94,8 +96,12 @@ ok(lead.body.lead?.status === 'incomplete', 'lead now Incomplete')
 // 4. Inbox operations
 const note = await j(`/api/leads/${PHONE}/notes`, { method: 'POST', body: JSON.stringify({ text: 'Called, will finish tomorrow' }) })
 ok(note.status === 200 && note.body.lead.notes.length >= 1, 'note added')
-const assign = await j(`/api/leads/${PHONE}`, { method: 'PATCH', body: JSON.stringify({ assignedTo: env.ADMIN_USERNAME, tags: ['followup'] }) })
-ok(assign.status === 200 && assign.body.lead.assignedTo === env.ADMIN_USERNAME, 'lead assigned')
+const saAssignBlocked = await j(`/api/leads/${PHONE}`, { method: 'PATCH', body: JSON.stringify({ assignedTo: env.ADMIN_USERNAME }) })
+ok(saAssignBlocked.status === 403, 'Super Admin blocked from assigning leads (403)')
+const tagUpdate = await j(`/api/leads/${PHONE}`, { method: 'PATCH', body: JSON.stringify({ tags: ['followup'] }) })
+ok(tagUpdate.status === 200 && tagUpdate.body.lead.tags?.includes('followup'), 'Super Admin can update lead tags')
+const assign = await j(`/api/leads/${PHONE}`, { method: 'PATCH', headers: devH, body: JSON.stringify({ assignedTo: env.ADMIN_USERNAME }) })
+ok(assign.status === 200 && assign.body.lead.assignedTo === env.ADMIN_USERNAME, 'Developer (Super Super Admin) assigned lead')
 const listIncomplete = await j('/api/leads?status=incomplete&limit=10')
 ok(listIncomplete.status === 200 && listIncomplete.body.leads.some(l => l.phone === PHONE), 'Incomplete filter lists the lead')
 const search = await j('/api/leads?q=0000777')
