@@ -178,6 +178,34 @@ const QUICK_EMOJIS = [
   '👏', '🤝', '⭐', '💯', '🕒', '✨', '🙌', '👌',
 ]
 
+function SafeChatImage({ src, isOutbound }) {
+  const [failed, setFailed] = useState(false)
+  if (!src) return null
+  if (failed) {
+    return (
+      <div
+        className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border ${
+          isOutbound ? 'bg-white/10 border-white/20 text-blue-100' : 'bg-white/70 border-slate-300 text-slate-500'
+        }`}
+      >
+        🖼️ Image unavailable (deleted or moved)
+      </div>
+    )
+  }
+  return (
+    <a href={src} target="_blank" rel="noreferrer" className="block">
+      <img
+        src={src}
+        alt="Attachment"
+        onError={() => setFailed(true)}
+        className={`w-full max-w-[260px] max-h-56 object-cover rounded-xl border ${
+          isOutbound ? 'border-white/20' : 'border-slate-300/60'
+        }`}
+      />
+    </a>
+  )
+}
+
 function RichMediaBubbleContent({ m, isOutbound }) {
   const imgSrc = m.imageUrl || (m.type === 'image' ? m.mediaUrl : '')
   const isDoc = m.type === 'document'
@@ -195,17 +223,7 @@ function RichMediaBubbleContent({ m, isOutbound }) {
 
   return (
     <div className="space-y-1.5">
-      {imgSrc && (
-        <a href={imgSrc} target="_blank" rel="noreferrer" className="block">
-          <img
-            src={imgSrc}
-            alt="Attachment"
-            className={`w-full max-w-[260px] max-h-56 object-cover rounded-xl border ${
-              isOutbound ? 'border-white/20' : 'border-slate-300/60'
-            }`}
-          />
-        </a>
-      )}
+      {imgSrc && <SafeChatImage src={imgSrc} isOutbound={isOutbound} />}
 
       {isVideo && m.mediaUrl && (
         <video
