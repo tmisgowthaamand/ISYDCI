@@ -59,6 +59,60 @@ export function saveMemberPhoto(member, bufferOrDataUri, extension = 'jpg') {
   return `${getSiteUrl()}/uploads/members/${folder}/${filename}`
 }
 
+const MIME_EXT = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'text/plain': 'txt',
+  'text/csv': 'csv',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/aac': 'aac',
+  'audio/amr': 'amr',
+  'audio/webm': 'webm',
+  'video/mp4': 'mp4',
+  'video/3gpp': '3gp',
+}
+
+/**
+ * Saves inbound/outbound WhatsApp inbox media (gallery, document, voice note, video)
+ * under uploads/inbox_media/<phone>/ and returns its public URL & metadata.
+ */
+export function saveInboxMedia(phone, buffer, { mimeType = '', originalName = '', ext = '' } = {}) {
+  const safePhone = String(phone || 'unknown').replace(/\D/g, '') || 'unknown'
+  const dir = path.join(UPLOADS_DIR, 'inbox_media', safePhone)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+
+  const cleanMime = String(mimeType || '').split(';')[0].trim().toLowerCase()
+  const nameExt = originalName && originalName.includes('.')
+    ? originalName.split('.').pop().replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    : ''
+  const resolvedExt = ext || nameExt || MIME_EXT[cleanMime] || 'bin'
+
+  const baseName = originalName
+    ? path.basename(originalName, path.extname(originalName)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+    : 'media'
+  const filename = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${baseName}.${resolvedExt}`
+  const filePath = path.join(dir, filename)
+  fs.writeFileSync(filePath, buffer)
+
+  return {
+    url: `${getSiteUrl()}/uploads/inbox_media/${safePhone}/${filename}`,
+    filePath,
+    filename: originalName || filename,
+    mimeType: cleanMime || mimeType || 'application/octet-stream',
+    sizeBytes: buffer.length,
+  }
+}
+
 /**
  * Deletes all physical image files and directory for a member from disk.
  * Handles front card, back card, full card, and profile photo.

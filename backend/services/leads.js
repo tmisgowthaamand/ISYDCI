@@ -4,6 +4,33 @@
 import { col } from '../db/mongo.js'
 import { phoneKey } from '../db/db.js'
 import { pickRoundRobinTelecaller } from './telecallers.js'
+import { saveInboxMedia } from './storage.js'
+
+async function downloadMetaInboxMedia(phone, mediaObj, kind) {
+  const mediaId = mediaObj?.id
+  const token = process.env.WHATSAPP_TOKEN
+  if (!mediaId || !token) return null
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!metaRes.ok) return null
+    const meta = await metaRes.json().catch(() => null)
+    if (!meta?.url) return null
+    const binRes = await fetch(meta.url, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!binRes.ok) return null
+    const buf = Buffer.from(await binRes.arrayBuffer())
+    if (!buf.length) return null
+    return saveInboxMedia(phone, buf, {
+      mimeType: mediaObj.mime_type || meta.mime_type || '',
+      originalName: mediaObj.filename || `${kind}_${mediaId}`,
+    })
+  } catch {
+    return null
+  }
+}
 
 export const LEAD_STATUS = {
   NEW: 'new',
@@ -141,11 +168,31 @@ export async function upsertLeadFromInbound(msg, value, member) {
     : LEAD_STATUS.CONTACTED
   const lead = await upsertLead(phone, { set, setOnInsert: { name: member?.name || profileName }, status, source })
 
+  let savedMedia = null
+  if (['image', 'document', 'audio', 'video'].includes(msg.type) && msg[msg.type]?.id) {
+    savedMedia = await downloadMetaInboxMedia(phone, msg[msg.type], msg.type)
+  }
+
+  const locationData =
+    msg.type === 'location' && msg.location
+      ? {
+          latitude: msg.location.latitude,
+          longitude: msg.location.longitude,
+          name: msg.location.name || '',
+          address: msg.location.address || '',
+        }
+      : null
+
   await MESSAGES().insertOne({
     leadPhone: phone,
     direction: 'in',
     type: msg.type,
     text: extractText(msg),
+    ...(savedMedia?.url ? { mediaUrl: savedMedia.url, mimeType: savedMedia.mimeType, filename: savedMedia.filename } : {}),
+    ...(msg.type === 'image' && savedMedia?.url ? { imageUrl: savedMedia.url } : {}),
+    ...(msg.type === 'document' && msg.document?.filename && !savedMedia?.filename ? { filename: msg.document.filename } : {}),
+    ...(msg.type === 'audio' ? { isVoice: Boolean(msg.audio?.voice) } : {}),
+    ...(locationData ? { location: locationData } : {}),
     waMessageId: msg.id,
     provider: 'meta',
     raw: compact(msg),
@@ -165,8 +212,13 @@ function extractText(msg) {
   }
   if (msg.type === 'button') return `[button] ${msg.button?.text || ''}`
   if (msg.type === 'image') return `[image]${msg.image?.caption ? ' ' + msg.image.caption : ''}`
-  if (msg.type === 'document') return `[document] ${msg.document?.filename || ''}`
-  if (msg.type === 'location') return '[location]'
+  if (msg.type === 'document') return `[document] ${msg.document?.filename || ''}${msg.document?.caption ? ' — ' + msg.document.caption : ''}`
+  if (msg.type === 'audio') return msg.audio?.voice ? '[voice note]' : '[audio]'
+  if (msg.type === 'video') return `[video]${msg.video?.caption ? ' ' + msg.video.caption : ''}`
+  if (msg.type === 'location') {
+    const loc = msg.location || {}
+    return `📍 ${loc.name || loc.address || `${loc.latitude}, ${loc.longitude}`}`
+  }
   return `[${msg.type}]`
 }
 
@@ -186,12 +238,19 @@ export async function recordOutbound(recipient, payload, waMessageId, provider =
   let text = ''
   let type = payload.type
   const imageUrl = payload.image?.link || extra.imageUrl || null
+  const mediaUrl = extra.mediaUrl || payload.image?.link || payload.document?.link || payload.audio?.link || payload.video?.link || null
+  const location = extra.location || payload.location || null
   if (payload.type === 'text') text = payload.text?.body || ''
   else if (payload.type === 'template') {
     type = 'template'
     text = extra.renderedText || `[template] ${payload.template?.name || ''}`
   } else if (payload.type === 'image') text = payload.image?.caption || '[image]'
-  else if (payload.type === 'interactive') {
+  else if (payload.type === 'document') text = payload.document?.caption || `[document] ${extra.filename || payload.document?.filename || 'Document'}`
+  else if (payload.type === 'audio') text = extra.isVoice ? '[voice note]' : '[audio]'
+  else if (payload.type === 'video') text = payload.video?.caption || '[video]'
+  else if (payload.type === 'location') {
+    text = `📍 ${location?.name || location?.address || `${location?.latitude}, ${location?.longitude}`}`
+  } else if (payload.type === 'interactive') {
     const i = payload.interactive || {}
     text = `[${i.type}] ${i.body?.text || ''}`
   } else text = `[${payload.type}]`
@@ -202,6 +261,11 @@ export async function recordOutbound(recipient, payload, waMessageId, provider =
     type,
     text: text.slice(0, 2000),
     ...(imageUrl ? { imageUrl } : {}),
+    ...(mediaUrl ? { mediaUrl } : {}),
+    ...(extra.mimeType ? { mimeType: extra.mimeType } : {}),
+    ...(extra.filename || payload.document?.filename ? { filename: extra.filename || payload.document?.filename } : {}),
+    ...(extra.isVoice ? { isVoice: true } : {}),
+    ...(location ? { location } : {}),
     ...(Array.isArray(extra.buttons) && extra.buttons.length ? { buttons: extra.buttons } : {}),
     waMessageId: waMessageId || null,
     status: waMessageId ? 'sent' : 'failed',

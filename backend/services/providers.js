@@ -118,7 +118,60 @@ const metaAdapter = config => {
   return {
     key: 'meta',
     sendText: (to, text) => send(to, { type: 'text', text: { body: text, preview_url: false } }),
-    sendImage: (to, link, caption) => send(to, { type: 'image', image: { link, caption } }),
+    sendImage: (to, linkOrOpts, caption) => {
+      const img = typeof linkOrOpts === 'object' && linkOrOpts !== null
+        ? { ...(linkOrOpts.id ? { id: linkOrOpts.id } : { link: linkOrOpts.link }), ...(linkOrOpts.caption ? { caption: linkOrOpts.caption } : {}) }
+        : { link: linkOrOpts, ...(caption ? { caption } : {}) }
+      return send(to, { type: 'image', image: img })
+    },
+    sendDocument: (to, { id, link, filename, caption } = {}) =>
+      send(to, {
+        type: 'document',
+        document: {
+          ...(id ? { id } : { link }),
+          ...(filename ? { filename } : {}),
+          ...(caption ? { caption } : {}),
+        },
+      }),
+    sendAudio: (to, { id, link } = {}) =>
+      send(to, {
+        type: 'audio',
+        audio: id ? { id } : { link },
+      }),
+    sendVideo: (to, { id, link, caption } = {}) =>
+      send(to, {
+        type: 'video',
+        video: {
+          ...(id ? { id } : { link }),
+          ...(caption ? { caption } : {}),
+        },
+      }),
+    sendLocation: (to, { latitude, longitude, name, address } = {}) =>
+      send(to, {
+        type: 'location',
+        location: {
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          ...(name ? { name: String(name).slice(0, 100) } : {}),
+          ...(address ? { address: String(address).slice(0, 200) } : {}),
+        },
+      }),
+    async uploadMedia(buffer, mimeType, filename = 'file') {
+      if (!token || !phoneNumberId) throw new Error('Meta credentials missing')
+      const cleanMime = String(mimeType || 'application/octet-stream').split(';')[0].trim()
+      const form = new FormData()
+      form.append('messaging_product', 'whatsapp')
+      form.append('type', cleanMime)
+      form.append('file', new Blob([buffer], { type: cleanMime }), filename)
+      const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.id) throw new Error(data.error?.message || `Meta media upload failed (${res.status})`)
+      return { mediaId: data.id }
+    },
     sendTemplate: (to, { name, language, components }) => send(to, { type: 'template', template: { name, language: { code: language || 'en' }, ...(components?.length ? { components } : {}) } }),
     sendRaw: send,
     async test() {

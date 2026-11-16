@@ -9,6 +9,7 @@ import { getProvider } from '../services/providers.js'
 import { sendTemplateTo, dispatchRichTemplateMessage } from '../services/templates.js'
 import { recordEvent } from '../services/audit.js'
 import { verifyMetaSignature } from '../services/calling.js'
+import { saveInboxMedia } from '../services/storage.js'
 
 const router = Router()
 
@@ -190,11 +191,102 @@ router.post('/:phone/reply', requireAuth(), async (req, res) => {
     const headerText = String(req.body?.headerText || '').trim()
     const buttons = Array.isArray(req.body?.buttons) ? req.body.buttons : []
     const templateName = req.body?.templateName || null
-    if (!text && !imageUrl) return res.status(400).json({ success: false, message: 'Message text or image is required' })
+    const location = req.body?.location && Number.isFinite(Number(req.body.location.latitude)) && Number.isFinite(Number(req.body.location.longitude))
+      ? {
+          latitude: Number(req.body.location.latitude),
+          longitude: Number(req.body.location.longitude),
+          name: String(req.body.location.name || '').trim(),
+          address: String(req.body.location.address || '').trim(),
+        }
+      : null
+    const mediaData = String(req.body?.mediaData || '').trim()
+    const mediaKind = String(req.body?.mediaKind || '').toLowerCase()
+    const mediaMime = String(req.body?.mimeType || '').split(';')[0].trim()
+    const mediaFilename = String(req.body?.filename || '').trim()
+    const isVoice = Boolean(req.body?.isVoice)
+
+    if (!text && !imageUrl && !location && !mediaData) {
+      return res.status(400).json({ success: false, message: 'Message text, media, or location is required' })
+    }
     const to = leadPhone(req.params.phone)
     const provider = await getProvider('transactional')
     let result
-    if (buttons.length > 0 || (imageUrl && /^https?:\/\//i.test(imageUrl))) {
+    if (location && provider.sendLocation) {
+      result = await provider.sendLocation(to, location)
+      await recordOutbound(
+        to,
+        { type: 'location', location },
+        result.messageId,
+        provider.key,
+        { sentBy: req.admin.username, location }
+      )
+    } else if (mediaData) {
+      const base64Part = mediaData.includes('base64,') ? mediaData.split('base64,')[1] : mediaData
+      const buffer = Buffer.from(base64Part, 'base64')
+      if (!buffer.length) return res.status(400).json({ success: false, message: 'Empty media attachment' })
+      const saved = saveInboxMedia(to, buffer, { mimeType: mediaMime, originalName: mediaFilename })
+      const kind = ['image', 'document', 'audio', 'video'].includes(mediaKind)
+        ? mediaKind
+        : saved.mimeType.startsWith('image/')
+          ? 'image'
+          : saved.mimeType.startsWith('audio/')
+            ? 'audio'
+            : saved.mimeType.startsWith('video/')
+              ? 'video'
+              : 'document'
+
+      let mediaId = null
+      if (provider.uploadMedia) {
+        try {
+          const uploaded = await provider.uploadMedia(buffer, saved.mimeType, saved.filename)
+          mediaId = uploaded.mediaId
+        } catch (uploadErr) {
+          // Fall back to public HTTPS link if Meta /media rejects MIME or is unreachable
+          if (!/^https?:\/\//i.test(saved.url)) throw uploadErr
+        }
+      }
+
+      const mediaRef = mediaId ? { id: mediaId } : { link: saved.url }
+      if (kind === 'image') {
+        result = await provider.sendImage(to, { ...mediaRef, caption: text || undefined })
+        await recordOutbound(
+          to,
+          { type: 'image', image: { link: saved.url, caption: text || undefined } },
+          result.messageId,
+          provider.key,
+          { sentBy: req.admin.username, imageUrl: saved.url, mediaUrl: saved.url, mimeType: saved.mimeType, filename: saved.filename }
+        )
+      } else if (kind === 'audio' && provider.sendAudio) {
+        result = await provider.sendAudio(to, mediaRef)
+        await recordOutbound(
+          to,
+          { type: 'audio', audio: { link: saved.url } },
+          result.messageId,
+          provider.key,
+          { sentBy: req.admin.username, mediaUrl: saved.url, mimeType: saved.mimeType, filename: saved.filename, isVoice }
+        )
+      } else if (kind === 'video' && provider.sendVideo) {
+        result = await provider.sendVideo(to, { ...mediaRef, caption: text || undefined })
+        await recordOutbound(
+          to,
+          { type: 'video', video: { link: saved.url, caption: text || undefined } },
+          result.messageId,
+          provider.key,
+          { sentBy: req.admin.username, mediaUrl: saved.url, mimeType: saved.mimeType, filename: saved.filename }
+        )
+      } else if (provider.sendDocument) {
+        result = await provider.sendDocument(to, { ...mediaRef, filename: saved.filename, caption: text || undefined })
+        await recordOutbound(
+          to,
+          { type: 'document', document: { link: saved.url, filename: saved.filename, caption: text || undefined } },
+          result.messageId,
+          provider.key,
+          { sentBy: req.admin.username, mediaUrl: saved.url, mimeType: saved.mimeType, filename: saved.filename }
+        )
+      } else {
+        throw new Error('Selected provider does not support this media type')
+      }
+    } else if (buttons.length > 0 || (imageUrl && /^https?:\/\//i.test(imageUrl))) {
       result = await dispatchRichTemplateMessage(provider, to, {
         headerFormat: imageUrl && /^https?:\/\//i.test(imageUrl) ? 'IMAGE' : headerText ? 'TEXT' : 'NONE',
         headerText,

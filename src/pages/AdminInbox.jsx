@@ -172,6 +172,125 @@ function IMessageAudioWaveform({ isOutbound, duration = '0:14' }) {
 }
 
 // Group messages into chronological timeline with day dividers
+const QUICK_EMOJIS = [
+  '😊', '👍', '🙏', '👋', '🎉', '✅', '❤️', '🔥',
+  '📞', '📍', '📄', '🏆', '🏅', '⚽', '🏃', '💪',
+  '👏', '🤝', '⭐', '💯', '🕒', '✨', '🙌', '👌',
+]
+
+function RichMediaBubbleContent({ m, isOutbound }) {
+  const imgSrc = m.imageUrl || (m.type === 'image' ? m.mediaUrl : '')
+  const isDoc = m.type === 'document'
+  const isAudio = m.type === 'audio' || m.type === 'voice'
+  const isVideo = m.type === 'video'
+  const isLoc = m.type === 'location' || Boolean(m.location?.latitude != null && m.location?.longitude != null)
+
+  const rawText = String(m.text || '').trim()
+  const hidePlaceholder =
+    (isDoc && /^\[document\]/i.test(rawText)) ||
+    (isAudio && /^\[(audio|voice note)\]/i.test(rawText)) ||
+    (isVideo && /^\[video\]/i.test(rawText)) ||
+    (imgSrc && /^\[image\]$/i.test(rawText)) ||
+    (isLoc && /^📍/.test(rawText))
+
+  return (
+    <div className="space-y-1.5">
+      {imgSrc && (
+        <a href={imgSrc} target="_blank" rel="noreferrer" className="block">
+          <img
+            src={imgSrc}
+            alt="Attachment"
+            className={`w-full max-w-[260px] max-h-56 object-cover rounded-xl border ${
+              isOutbound ? 'border-white/20' : 'border-slate-300/60'
+            }`}
+          />
+        </a>
+      )}
+
+      {isVideo && m.mediaUrl && (
+        <video
+          controls
+          preload="metadata"
+          src={m.mediaUrl}
+          className="w-full max-w-[260px] max-h-56 rounded-xl bg-black"
+        />
+      )}
+
+      {isAudio && (
+        m.mediaUrl ? (
+          <div className="flex items-center gap-2 py-0.5">
+            <span className="text-base">{m.isVoice ? '🎤' : '🎵'}</span>
+            <audio controls preload="metadata" src={m.mediaUrl} className="w-52 sm:w-64 h-8" />
+          </div>
+        ) : (
+          <IMessageAudioWaveform isOutbound={isOutbound} duration={m.duration || '0:14'} />
+        )
+      )}
+
+      {isDoc && (
+        <div
+          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border ${
+            isOutbound ? 'bg-white/15 border-white/25 text-white' : 'bg-white border-slate-300/70 text-slate-800'
+          }`}
+        >
+          <span className="text-xl shrink-0">📄</span>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-bold truncate">{m.filename || 'Document'}</div>
+            <div className={`text-[10px] ${isOutbound ? 'text-blue-100' : 'text-slate-500'}`}>
+              {m.mimeType || 'Attachment'}
+            </div>
+          </div>
+          {m.mediaUrl && (
+            <a
+              href={m.mediaUrl}
+              target="_blank"
+              rel="noreferrer"
+              download={m.filename || undefined}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 ${
+                isOutbound ? 'bg-white text-[#007AFF] hover:bg-blue-50' : 'bg-[#007AFF] text-white hover:bg-blue-600'
+              }`}
+            >
+              Open
+            </a>
+          )}
+        </div>
+      )}
+
+      {isLoc && m.location && (
+        <a
+          href={`https://www.google.com/maps?q=${m.location.latitude},${m.location.longitude}`}
+          target="_blank"
+          rel="noreferrer"
+          className={`block px-3 py-2 rounded-xl border transition-colors ${
+            isOutbound
+              ? 'bg-white/15 border-white/25 text-white hover:bg-white/20'
+              : 'bg-white border-slate-300/70 text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center gap-2 font-bold text-xs">
+            <span>📍</span>
+            <span className="truncate">{m.location.name || 'Shared Location'}</span>
+          </div>
+          {m.location.address && (
+            <div className={`text-[11px] mt-0.5 ${isOutbound ? 'text-blue-100' : 'text-slate-500'}`}>
+              {m.location.address}
+            </div>
+          )}
+          <div className={`text-[10px] mt-1 font-semibold underline ${isOutbound ? 'text-white' : 'text-[#007AFF]'}`}>
+            Open in Google Maps ({Number(m.location.latitude).toFixed(4)}, {Number(m.location.longitude).toFixed(4)}) ↗
+          </div>
+        </a>
+      )}
+
+      {!hidePlaceholder && rawText ? (
+        <FormattedMessageText text={rawText} isOutbound={isOutbound} />
+      ) : !imgSrc && !m.mediaUrl && !isDoc && !isAudio && !isLoc && !rawText ? (
+        <span className={`italic ${isOutbound ? 'text-blue-100' : 'text-slate-500'}`}>[{m.type || 'Message'}]</span>
+      ) : null}
+    </div>
+  )
+}
+
 const groupMessagesWithDividers = messages => {
   const items = []
   let lastDay = null
@@ -298,7 +417,20 @@ export default function AdminInbox() {
   const [activeTab, setActiveTab] = useState('reply') // reply | template | notes
   const [copied, setCopied] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [locForm, setLocForm] = useState({ latitude: '', longitude: '', name: '', address: '' })
+  const [pendingAttachment, setPendingAttachment] = useState(null) // { mediaKind, mediaData, mimeType, filename, previewUrl, sizeBytes }
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [voiceSeconds, setVoiceSeconds] = useState(0)
   const chatScrollRef = useRef(null)
+  const galleryInputRef = useRef(null)
+  const docInputRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const voiceChunksRef = useRef([])
+  const voiceTimerRef = useRef(null)
+  const voiceStreamRef = useRef(null)
   const limit = 30
 
   useEffect(() => {
@@ -412,9 +544,164 @@ export default function AdminInbox() {
     return () => clearInterval(id)
   }, [selected?.phone])
 
+  const handleFilePicked = (e, forcedKind = '') => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > 16 * 1024 * 1024) {
+      setError('File size must be under 16 MB for WhatsApp')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '')
+      const mime = file.type || 'application/octet-stream'
+      const kind =
+        forcedKind ||
+        (mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'document')
+      setPendingAttachment({
+        mediaKind: kind,
+        mediaData: dataUrl,
+        mimeType: mime,
+        filename: file.name,
+        previewUrl: kind === 'image' ? dataUrl : '',
+        sizeBytes: file.size,
+      })
+      setShowAttachMenu(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const sendLocationReply = async e => {
+    e?.preventDefault()
+    if (!selected) return
+    const lat = Number(locForm.latitude)
+    const lng = Number(locForm.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setError('Enter valid latitude and longitude')
+      return
+    }
+    setSending(true)
+    setError('')
+    try {
+      await apiJson(`/api/leads/${selected.phone}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({
+          location: {
+            latitude: lat,
+            longitude: lng,
+            name: locForm.name.trim(),
+            address: locForm.address.trim(),
+          },
+        }),
+      })
+      setShowLocationModal(false)
+      setLocForm({ latitude: '', longitude: '', name: '', address: '' })
+      setInfo('Location sent!')
+      openLead(selected.phone)
+      loadList(page)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const useBrowserLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported in this browser')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setLocForm(prev => ({
+          ...prev,
+          latitude: pos.coords.latitude.toFixed(6),
+          longitude: pos.coords.longitude.toFixed(6),
+          name: prev.name || 'Current Location',
+        }))
+      },
+      err => setError(err.message || 'Unable to read GPS location')
+    )
+  }
+
+  const startVoiceRecording = async () => {
+    if (!selected || isRecordingVoice) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      voiceStreamRef.current = stream
+      const candidates = ['audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']
+      const mimeType = candidates.find(t => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) || ''
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      voiceChunksRef.current = []
+      recorder.ondataavailable = ev => {
+        if (ev.data && ev.data.size > 0) voiceChunksRef.current.push(ev.data)
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start(250)
+      setIsRecordingVoice(true)
+      setVoiceSeconds(0)
+      voiceTimerRef.current = setInterval(() => setVoiceSeconds(s => s + 1), 1000)
+    } catch (err) {
+      setError('Microphone permission denied or unavailable')
+    }
+  }
+
+  const stopVoiceRecording = async (shouldSend = true) => {
+    const rec = mediaRecorderRef.current
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current)
+      voiceTimerRef.current = null
+    }
+    setIsRecordingVoice(false)
+    if (!rec) return
+    const stopPromise = new Promise(resolve => {
+      rec.onstop = () => resolve()
+    })
+    if (rec.state !== 'inactive') rec.stop()
+    await stopPromise
+    if (voiceStreamRef.current) {
+      voiceStreamRef.current.getTracks().forEach(t => t.stop())
+      voiceStreamRef.current = null
+    }
+    if (!shouldSend || !selected || !voiceChunksRef.current.length) {
+      voiceChunksRef.current = []
+      return
+    }
+    const blob = new Blob(voiceChunksRef.current, { type: rec.mimeType || 'audio/ogg' })
+    voiceChunksRef.current = []
+    const reader = new FileReader()
+    reader.onload = async () => {
+      setSending(true)
+      setError('')
+      try {
+        const cleanMime = String(blob.type || 'audio/ogg').split(';')[0]
+        const ext = cleanMime.includes('mp4') ? 'm4a' : cleanMime.includes('webm') ? 'webm' : 'ogg'
+        await apiJson(`/api/leads/${selected.phone}/reply`, {
+          method: 'POST',
+          body: JSON.stringify({
+            mediaData: String(reader.result || ''),
+            mediaKind: 'audio',
+            mimeType: cleanMime,
+            filename: `voice_note_${Date.now()}.${ext}`,
+            isVoice: true,
+          }),
+        })
+        setInfo('Voice note sent!')
+        openLead(selected.phone)
+        loadList(page)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setSending(false)
+      }
+    }
+    reader.readAsDataURL(blob)
+  }
+
   const sendReply = async e => {
     if (e) e.preventDefault()
-    if ((!reply.trim() && !replyImage?.url) || !selected) return
+    if ((!reply.trim() && !replyImage?.url && !pendingAttachment) || !selected) return
     setSending(true)
     setError('')
     try {
@@ -422,15 +709,26 @@ export default function AdminInbox() {
         method: 'POST',
         body: JSON.stringify({
           text: reply.trim(),
-          imageUrl: replyImage?.url || undefined,
-          footerText: replyImage?.footerText || undefined,
-          headerText: replyImage?.headerText || undefined,
-          buttons: replyImage?.buttons || undefined,
-          templateName: replyImage?.templateName || undefined,
+          ...(pendingAttachment
+            ? {
+                mediaData: pendingAttachment.mediaData,
+                mediaKind: pendingAttachment.mediaKind,
+                mimeType: pendingAttachment.mimeType,
+                filename: pendingAttachment.filename,
+              }
+            : {
+                imageUrl: replyImage?.url || undefined,
+                footerText: replyImage?.footerText || undefined,
+                headerText: replyImage?.headerText || undefined,
+                buttons: replyImage?.buttons || undefined,
+                templateName: replyImage?.templateName || undefined,
+              }),
         }),
       })
       setReply('')
       setReplyImage(null)
+      setPendingAttachment(null)
+      setShowEmojiPicker(false)
       setInfo('Message sent successfully!')
       openLead(selected.phone)
       loadList(page)
@@ -1116,12 +1414,8 @@ export default function AdminInbox() {
                             <div className="relative bg-[#E9E9EB] text-[#000000] px-4 py-2.5 rounded-[18px] text-[13.5px] leading-relaxed shadow-2xs whitespace-pre-wrap break-words selection:bg-blue-200 border border-black/[0.04]">
                               {m.type === 'call_log' || m.channel === 'whatsapp_call' ? (
                                 <CallLogBubbleContent m={m} isOutbound={false} call={leadCalls[m.waMessageId]} />
-                              ) : m.type === 'audio' || m.type === 'voice' ? (
-                                <IMessageAudioWaveform isOutbound={false} duration={m.duration || '0:14'} />
-                              ) : m.text ? (
-                                <FormattedMessageText text={m.text} isOutbound={false} />
                               ) : (
-                                <span className="italic text-slate-500">[{m.type || 'Message'}]</span>
+                                <RichMediaBubbleContent m={m} isOutbound={false} />
                               )}
                               <IMessageInTail />
                             </div>
@@ -1149,21 +1443,10 @@ export default function AdminInbox() {
 
                             {/* iOS iMessage Vibrant Blue Bubble with Bottom-Right Tail */}
                             <div className="relative bg-[#007AFF] text-white px-4 py-2.5 rounded-[18px] text-[13.5px] leading-relaxed shadow-sm shadow-blue-500/20 whitespace-pre-wrap break-words selection:bg-white/30">
-                              {m.imageUrl && (
-                                <img
-                                  src={m.imageUrl}
-                                  alt="Template header"
-                                  className="w-full max-h-48 object-cover rounded-xl mb-2 border border-white/20"
-                                />
-                              )}
                               {m.type === 'call_log' || m.channel === 'whatsapp_call' ? (
                                 <CallLogBubbleContent m={m} isOutbound={true} call={leadCalls[m.waMessageId]} />
-                              ) : m.type === 'audio' || m.type === 'voice' ? (
-                                <IMessageAudioWaveform isOutbound={true} duration={m.duration || '0:18'} />
-                              ) : m.text ? (
-                                <FormattedMessageText text={m.text} isOutbound={true} />
                               ) : (
-                                <span className="italic text-blue-100">[{m.type || 'Message'}]</span>
+                                <RichMediaBubbleContent m={m} isOutbound={true} />
                               )}
                               {Array.isArray(m.buttons) && m.buttons.length > 0 && (
                                 <div className="mt-2.5 pt-2 border-t border-white/25 space-y-1.5">
@@ -1351,14 +1634,124 @@ export default function AdminInbox() {
                       </div>
                     )}
 
-                    {/* Apple iOS Style Message Bar (Pill Input + Circular Up-Arrow Button) */}
-                    <div className="flex items-center gap-2">
-                      {/* Plus / Template Switcher Button (Apple iOS Style) */}
+                    {/* Attached File / Gallery Preview */}
+                    {pendingAttachment && (
+                      <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950">
+                        {pendingAttachment.previewUrl ? (
+                          <img src={pendingAttachment.previewUrl} alt="Preview" className="w-10 h-10 object-cover rounded-lg border border-emerald-200 shrink-0" />
+                        ) : (
+                          <span className="text-xl shrink-0">
+                            {pendingAttachment.mediaKind === 'video' ? '🎬' : pendingAttachment.mediaKind === 'audio' ? '🎤' : '📄'}
+                          </span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-[11px] truncate">{pendingAttachment.filename}</div>
+                          <div className="text-[10px] text-emerald-700">
+                            {pendingAttachment.mediaKind.toUpperCase()} • {Math.max(1, Math.round((pendingAttachment.sizeBytes || 0) / 1024))} KB — Add caption or press Send
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPendingAttachment(null)}
+                          className="text-emerald-700 hover:text-emerald-950 font-bold px-1.5 cursor-pointer"
+                          title="Remove attachment"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Hidden File Inputs for Gallery & Document */}
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      onChange={e => handleFilePicked(e)}
+                    />
+                    <input
+                      ref={docInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,application/pdf"
+                      className="hidden"
+                      onChange={e => handleFilePicked(e, 'document')}
+                    />
+
+                    {/* WhatsApp-Style Message Bar (+ Attachment Menu, Emoji, Pill Input, Mic Voice Note / Send) */}
+                    <div className="relative flex items-center gap-2">
+                      {/* Attachment Menu Popover */}
+                      {showAttachMenu && (
+                        <div className="absolute bottom-12 left-0 z-30 bg-white rounded-2xl shadow-xl border border-slate-200 p-3 grid grid-cols-4 gap-2.5 w-72">
+                          <button
+                            type="button"
+                            onClick={() => galleryInputRef.current?.click()}
+                            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+                          >
+                            <span className="w-9 h-9 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-base">🖼️</span>
+                            <span className="text-[10px] font-bold text-slate-700">Gallery</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => docInputRef.current?.click()}
+                            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+                          >
+                            <span className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-base">📄</span>
+                            <span className="text-[10px] font-bold text-slate-700">Document</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAttachMenu(false)
+                              setShowLocationModal(true)
+                            }}
+                            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+                          >
+                            <span className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-base">📍</span>
+                            <span className="text-[10px] font-bold text-slate-700">Location</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAttachMenu(false)
+                              setActiveTab('template')
+                            }}
+                            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+                          >
+                            <span className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-base">⚡</span>
+                            <span className="text-[10px] font-bold text-slate-700">Template</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Emoji Picker Popover */}
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-12 left-11 z-30 bg-white rounded-2xl shadow-xl border border-slate-200 p-2.5 grid grid-cols-6 gap-1.5 w-60">
+                          {QUICK_EMOJIS.map(em => (
+                            <button
+                              key={em}
+                              type="button"
+                              onClick={() => setReply(prev => prev + em)}
+                              className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-base cursor-pointer"
+                            >
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Plus / Attachment Menu Button */}
                       <button
                         type="button"
-                        onClick={() => setActiveTab('template')}
-                        className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer border border-slate-200 shadow-2xs"
-                        title="Open WhatsApp templates"
+                        onClick={() => {
+                          setShowAttachMenu(v => !v)
+                          setShowEmojiPicker(false)
+                        }}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer border shadow-2xs ${
+                          showAttachMenu
+                            ? 'bg-[#007AFF] text-white border-[#007AFF] rotate-45'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200'
+                        }`}
+                        title="Attach Gallery, Document, Location or Template"
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="12" y1="5" x2="12" y2="19" />
@@ -1366,41 +1759,143 @@ export default function AdminInbox() {
                         </svg>
                       </button>
 
-                      {/* Pill-shaped Input Container */}
-                      <div className="flex-1 relative flex items-center bg-slate-100 hover:bg-slate-50 focus-within:bg-white border border-slate-300/80 focus-within:border-[#007AFF] focus-within:ring-2 focus-within:ring-blue-500/10 rounded-full px-4 py-1.5 shadow-2xs transition-all">
-                        <input
-                          type="text"
-                          value={reply}
-                          onChange={e => setReply(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              sendReply(e)
-                            }
-                          }}
-                          placeholder={`iMessage to ${selected.name || '+' + selected.phone}…`}
-                          className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none font-medium pr-9"
-                          autoFocus
-                        />
+                      {isRecordingVoice ? (
+                        <div className="flex-1 flex items-center justify-between bg-rose-50 border border-rose-300 rounded-full px-4 py-1.5">
+                          <div className="flex items-center gap-2 text-xs font-bold text-rose-700">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+                            <span>Recording Voice Note… {formatCallDur(voiceSeconds)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => stopVoiceRecording(false)}
+                              className="px-2.5 py-1 rounded-full bg-white text-slate-700 border border-slate-300 text-[11px] font-bold hover:bg-slate-100 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => stopVoiceRecording(true)}
+                              className="px-3 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 cursor-pointer"
+                            >
+                              Send 🎤
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Pill-shaped Input Container with Emoji Button */}
+                          <div className="flex-1 relative flex items-center bg-slate-100 hover:bg-slate-50 focus-within:bg-white border border-slate-300/80 focus-within:border-[#007AFF] focus-within:ring-2 focus-within:ring-blue-500/10 rounded-full px-3 py-1.5 shadow-2xs transition-all">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowEmojiPicker(v => !v)
+                                setShowAttachMenu(false)
+                              }}
+                              className="mr-2 text-base text-slate-500 hover:text-slate-800 cursor-pointer shrink-0"
+                              title="Insert Emoji"
+                            >
+                              😊
+                            </button>
+                            <input
+                              type="text"
+                              value={reply}
+                              onChange={e => setReply(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  sendReply(e)
+                                }
+                              }}
+                              placeholder={`Message ${selected.name || '+' + selected.phone}…`}
+                              className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none font-medium pr-9"
+                              autoFocus
+                            />
 
-                        {/* Circular Up-Arrow Send Button (From 2nd Screenshot) */}
-                        <button
-                          type="submit"
-                          disabled={sending || !reply.trim()}
-                          className={`absolute right-1 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
-                            reply.trim() && !sending
-                              ? 'bg-[#007AFF] hover:bg-blue-600 text-white active:scale-90 shadow-blue-500/30'
-                              : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
-                          }`}
-                          title="Send message (Enter)"
-                        >
-                          <svg className="w-3.5 h-3.5 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="19" x2="12" y2="5" />
-                            <polyline points="5 12 12 5 19 12" />
-                          </svg>
-                        </button>
-                      </div>
+                            {/* Circular Up-Arrow Send Button */}
+                            <button
+                              type="submit"
+                              disabled={sending || (!reply.trim() && !pendingAttachment && !replyImage?.url)}
+                              className={`absolute right-1 w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                                (reply.trim() || pendingAttachment || replyImage?.url) && !sending
+                                  ? 'bg-[#007AFF] hover:bg-blue-600 text-white active:scale-90 shadow-blue-500/30'
+                                  : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+                              }`}
+                              title="Send message (Enter)"
+                            >
+                              <svg className="w-3.5 h-3.5 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="12" y1="19" x2="12" y2="5" />
+                                <polyline points="5 12 12 5 19 12" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* Voice Note Mic Button */}
+                          <button
+                            type="button"
+                            disabled={sending}
+                            onClick={startVoiceRecording}
+                            className="w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer shadow-sm"
+                            title="Record & Send Voice Note"
+                          >
+                            🎤
+                          </button>
+                        </>
+                      )}
                     </div>
+
+                    {/* Location Share Modal */}
+                    {showLocationModal && (
+                      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-extrabold text-slate-900">📍 Share WhatsApp Location</h3>
+                            <button type="button" onClick={() => setShowLocationModal(false)} className="text-slate-400 hover:text-slate-700 font-bold cursor-pointer">✕</button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={useBrowserLocation}
+                            className="w-full py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold cursor-pointer"
+                          >
+                            📡 Use My Current GPS Location
+                          </button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={locForm.latitude}
+                              onChange={e => setLocForm(f => ({ ...f, latitude: e.target.value }))}
+                              placeholder="Latitude (e.g. 13.0827)"
+                              className="px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                            />
+                            <input
+                              type="text"
+                              value={locForm.longitude}
+                              onChange={e => setLocForm(f => ({ ...f, longitude: e.target.value }))}
+                              placeholder="Longitude (e.g. 80.2707)"
+                              className="px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={locForm.name}
+                            onChange={e => setLocForm(f => ({ ...f, name: e.target.value }))}
+                            placeholder="Place Name (e.g. ISYDCI Office)"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                          />
+                          <input
+                            type="text"
+                            value={locForm.address}
+                            onChange={e => setLocForm(f => ({ ...f, address: e.target.value }))}
+                            placeholder="Address (optional)"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                          />
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button type="button" onClick={() => setShowLocationModal(false)} className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer">Cancel</button>
+                            <button type="button" disabled={sending} onClick={sendLocationReply} className="px-4 py-1.5 rounded-xl bg-[#007AFF] text-white text-xs font-bold hover:bg-blue-600 cursor-pointer">Send Location</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between text-[10px] text-slate-400 px-2 select-none">
                       {is24hWindowOpen ? (
